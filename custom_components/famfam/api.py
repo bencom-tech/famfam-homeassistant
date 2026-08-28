@@ -160,3 +160,22 @@ class FamFamApiClient:
     async def async_delete_item(self, list_id: str, item_id: str) -> None:
         """Delete an item from a list."""
         await self._request("DELETE", f"/lists/{list_id}/items/{item_id}")
+
+    async def async_create_event(self, body: dict[str, Any]) -> None:
+        """Create a calendar event."""
+        await self._request("POST", "/events", json=body)
+
+    async def async_update_event(
+        self, event_id: str, changes: dict[str, Any]
+    ) -> None:
+        """PATCH an event with exactly the given changes.
+
+        Server semantics: an absent key is untouched, null clears the field.
+        The caller diffs first and must send the master id — the server
+        rejects synthetic "{masterId}::{date}" occurrence ids.
+        """
+        await self._request("PATCH", f"/events/{event_id}", json=changes)
+
+    async def async_delete_event(self, event_id: str) -> None:
+        """Delete an event (the whole series for repeating events)."""
+        await self._request("DELETE", f"/events/{event_id}")

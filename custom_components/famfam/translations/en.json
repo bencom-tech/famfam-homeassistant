@@ -48,13 +48,26 @@
         "data_description": {
           "poll_interval": "How often to check famfam.life for changes, in seconds.",
           "default_member": "Who button presses and voice-originated actions act as. Leave empty to act as the token's member.",
-          "create_member_calendars": "Takes effect when the calendar platform is added.",
+          "create_member_calendars": "Adds a calendar entity for each family member.",
           "lists": "Which FamFam lists appear as to-do lists. While every list is selected, new lists appear automatically."
         }
       }
     },
     "abort": {
       "not_loaded": "FamFam is not loaded. Fix the connection first, then adjust options."
+    }
+  },
+  "entity": {
+    "calendar": {
+      "family": {
+        "name": "Family calendar"
+      },
+      "member": {
+        "name": "Calendar"
+      },
+      "meals": {
+        "name": "Meal plan"
+      }
     }
   },
   "exceptions": {
@@ -81,6 +94,36 @@
     },
     "item_delete_failed": {
       "message": "FamFam couldn't delete the item ({code})."
+    },
+    "event_not_found": {
+      "message": "That event no longer exists on the FamFam calendar."
+    },
+    "event_create_failed": {
+      "message": "FamFam couldn't create the event ({code})."
+    },
+    "event_update_failed": {
+      "message": "FamFam couldn't update the event ({code})."
+    },
+    "event_delete_failed": {
+      "message": "FamFam couldn't delete the event ({code})."
+    },
+    "event_quota_exceeded": {
+      "message": "Your family has reached its FamFam event limit for the moment."
+    },
+    "event_not_creator": {
+      "message": "Only the person who created this event can change or delete it."
+    },
+    "event_recurrence_not_supported": {
+      "message": "Repeating events can't be created from Home Assistant — create them in the FamFam app."
+    },
+    "event_recurring_edit_not_supported": {
+      "message": "Repeating events can't be edited from Home Assistant — edit them in the FamFam app."
+    },
+    "event_occurrence_not_supported": {
+      "message": "Only the whole series can be deleted from Home Assistant — manage single occurrences in the FamFam app."
+    },
+    "event_multi_day_not_supported": {
+      "message": "FamFam events can't span more than one day."
     }
   }
 }

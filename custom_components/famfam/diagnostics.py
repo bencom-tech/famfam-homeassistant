@@ -30,4 +30,6 @@ async def async_get_config_entry_diagnostics(
             list_id: asdict(famfam_list)
             for list_id, famfam_list in coordinator.data.lists.items()
         },
+        "events": [asdict(event) for event in coordinator.data.events],
+        "meals": [asdict(meal) for meal in coordinator.data.meals],
     }

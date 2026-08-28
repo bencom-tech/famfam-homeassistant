@@ -75,7 +75,7 @@ rules:
     comment: Handled by DataUpdateCoordinator.
   parallel-updates:
     status: done
-    comment: PARALLEL_UPDATES = 0 on the todo platform.
+    comment: PARALLEL_UPDATES = 0 on the todo and calendar platforms.
   reauthentication-flow:
     status: done
   test-coverage:

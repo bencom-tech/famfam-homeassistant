@@ -1,5 +1,16 @@
 {
   "entity": {
+    "calendar": {
+      "family": {
+        "default": "mdi:calendar-multiple"
+      },
+      "member": {
+        "default": "mdi:calendar-account"
+      },
+      "meals": {
+        "default": "mdi:silverware-fork-knife"
+      }
+    },
     "todo": {
       "list": {
         "default": "mdi:format-list-checks"

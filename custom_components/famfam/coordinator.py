@@ -15,9 +15,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import FamFamApiClient, FamFamApiError, FamFamAuthError, FamFamConnectionError
-from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN
+from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN, STATE_MAX_AGE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,15 +121,55 @@ class FamFamList:
 
 
 @dataclass(slots=True)
+class FamFamEvent:
+    """A calendar event occurrence from the state payload.
+
+    Repeating events arrive server-expanded: beyond the first occurrence the
+    id is the synthetic "{masterId}::{date}"; writes must use master_id.
+    An empty member_ids means the whole family. For all-day events start is
+    "YYYY-MM-DD" and the wire end just echoes date; for timed events start is
+    ISO 8601 with the family's UTC offset and end may be null (no end time).
+    """
+
+    id: str
+    master_id: str
+    title: str
+    date: str
+    all_day: bool
+    start: str
+    end: str | None
+    member_ids: list[str]
+    created_by: str
+    location: str | None
+    notes: str | None
+    repeat: str
+
+
+@dataclass(slots=True)
+class FamFamMeal:
+    """A meal-plan day from the state payload."""
+
+    date: str
+    meal: str
+    recipe_id: str | None
+    cook_uid: str | None
+    ingredient_status: str | None
+
+
+@dataclass(slots=True)
 class FamFamData:
     """Parsed coordinator data.
 
-    Only lists are typed for now; the raw payload is retained for the
-    calendar/sensor platforms of later sessions.
+    Lists, events and meals are typed; the raw payload is retained for the
+    sensor platforms of later sessions (check-ins, trip).
     """
 
     state_version: int
+    generated_at: str
+    timezone: str
     lists: dict[str, FamFamList]
+    events: list[FamFamEvent]
+    meals: list[FamFamMeal]
     raw: dict[str, Any]
 
     @classmethod
@@ -157,9 +198,40 @@ class FamFamData:
                 categories=lst.get("categories"),
                 items=items,
             )
+        events = [
+            FamFamEvent(
+                id=event["id"],
+                master_id=event.get("masterId", event["id"]),
+                title=event.get("title", ""),
+                date=event.get("date", ""),
+                all_day=event.get("allDay", False),
+                start=event.get("start", ""),
+                end=event.get("end"),
+                member_ids=list(event.get("memberIds") or []),
+                created_by=event.get("createdBy", ""),
+                location=event.get("location"),
+                notes=event.get("notes"),
+                repeat=event.get("repeat", "never"),
+            )
+            for event in payload.get("events", [])
+        ]
+        meals = [
+            FamFamMeal(
+                date=meal["date"],
+                meal=meal.get("meal", ""),
+                recipe_id=meal.get("recipeId"),
+                cook_uid=meal.get("cookUid"),
+                ingredient_status=meal.get("ingredientStatus"),
+            )
+            for meal in payload.get("meals", [])
+        ]
         return cls(
             state_version=payload.get("stateVersion", 0),
+            generated_at=payload.get("generatedAt", ""),
+            timezone=payload.get("timezone", ""),
             lists=lists,
+            events=events,
+            meals=meals,
             raw=payload,
         )
 
@@ -209,6 +281,16 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
 
     async def _async_update_data(self) -> FamFamData:
         """Fetch the state, honouring the ETag."""
+        if (
+            self.etag
+            and self.data is not None
+            and (generated := dt_util.parse_datetime(self.data.generated_at))
+            and dt_util.utcnow() - dt_util.as_utc(generated) > STATE_MAX_AGE
+        ):
+            # The ETag is the family's stateVersion, so a quiet family 304s
+            # indefinitely while the served event (-7/+28 days) and meal
+            # (14 days) windows never slide. Force a full refetch instead.
+            self.etag = None
         try:
             result = await self.client.async_get_state(self.etag)
         except FamFamAuthError as err:
