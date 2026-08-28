@@ -1,0 +1,213 @@
+add_event:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    summary:
+      required: true
+      example: "Swimming lesson"
+      selector:
+        text:
+    description:
+      required: false
+      selector:
+        text:
+          multiline: true
+    start:
+      required: true
+      example: "2026-09-01 15:30:00"
+      selector:
+        datetime:
+    end:
+      required: false
+      example: "2026-09-01 16:30:00"
+      selector:
+        datetime:
+    all_day:
+      required: false
+      default: false
+      selector:
+        boolean:
+    members:
+      required: false
+      example: "Alex"
+      selector:
+        text:
+          multiple: true
+    calendar_entity_id:
+      required: false
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: calendar
+
+set_dinner_checkin:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    member:
+      required: false
+      example: "Alex"
+      selector:
+        text:
+    date:
+      required: false
+      selector:
+        date:
+    status:
+      required: true
+      selector:
+        select:
+          translation_key: checkin_status
+          options:
+            - eating
+            - no_meal
+            - no_response
+
+set_meal:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    date:
+      required: true
+      selector:
+        date:
+    recipe_id:
+      required: false
+      selector:
+        text:
+    meal_name:
+      required: false
+      example: "Spaghetti bolognese"
+      selector:
+        text:
+
+add_meal_ingredients_to_list:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    date_from:
+      required: true
+      selector:
+        date:
+    date_to:
+      required: false
+      selector:
+        date:
+    list_entity_id:
+      required: false
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: todo
+
+add_list_item:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    list_entity_id:
+      required: true
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: todo
+    item:
+      required: true
+      example: "2L milk"
+      selector:
+        text:
+    category:
+      required: false
+      example: "Dairy"
+      selector:
+        text:
+
+start_shopping_trip:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+
+end_shopping_trip:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+
+search_recipes:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    query:
+      required: false
+      example: "chicken"
+      selector:
+        text:
+    cuisine:
+      required: false
+      example: "Italian"
+      selector:
+        text:
+    diet:
+      required: false
+      example: "Vegetarian"
+      selector:
+        text:
+    free_from:
+      required: false
+      example: "Gluten"
+      selector:
+        text:
+    course:
+      required: false
+      example: "Dinner"
+      selector:
+        text:
+    limit:
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box
+
+get_meal_plan:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    days:
+      required: false
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 14
+          mode: box

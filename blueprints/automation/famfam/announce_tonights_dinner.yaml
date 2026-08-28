@@ -1,0 +1,95 @@
+blueprint:
+  name: "FamFam: announce tonight's dinner"
+  description: >-
+    At a chosen time, announce what's for dinner tonight and how many
+    people to cook for.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/announce_tonights_dinner.yaml
+  input:
+    dinner_sensor:
+      name: Tonight's dinner sensor
+      description: The FamFam "Tonight's dinner" sensor.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: sensor
+    headcount_sensor:
+      name: Dinner headcount sensor
+      description: The FamFam "Dinner headcount" sensor.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: sensor
+    announce_time:
+      name: Announcement time
+      default: "16:30:00"
+      selector:
+        time:
+    tts_entity:
+      name: Text-to-speech engine
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: tts
+    media_players:
+      name: Speakers
+      description: Where to announce dinner. Leave empty for no announcement.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: media_player
+          multiple: true
+    notify_service:
+      name: Notify action
+      description: >-
+        A notify action such as notify.mobile_app_alexs_phone. Leave empty
+        for no notification.
+      default: ""
+      selector:
+        text:
+
+triggers:
+  - trigger: time
+    at: !input announce_time
+
+variables:
+  dinner_sensor: !input dinner_sensor
+  headcount_sensor: !input headcount_sensor
+  media_players: !input media_players
+  notify_service: !input notify_service
+  dinner_message: >-
+    Tonight's dinner is {{ states(dinner_sensor) }}, cooking for
+    {{ states(headcount_sensor) }}.
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ states(dinner_sensor) not in ['unknown', 'unavailable', 'none', ''] }}
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ media_players | count > 0 }}"
+    then:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_entity
+        data:
+          media_player_entity_id: !input media_players
+          message: "{{ dinner_message }}"
+  - if:
+      - condition: template
+        value_template: "{{ notify_service != '' }}"
+    then:
+      - action: "{{ notify_service }}"
+        data:
+          title: "Tonight's dinner"
+          message: "{{ dinner_message }}"
+
+mode: single

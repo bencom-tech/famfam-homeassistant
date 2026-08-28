@@ -1,0 +1,88 @@
+blueprint:
+  name: "FamFam: dinner check-in nudge"
+  description: >-
+    If dinner check-ins aren't complete at a chosen time, announce it on
+    speakers and send a notification naming who hasn't answered yet.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/dinner_checkin_nudge.yaml
+  input:
+    checkins_sensor:
+      name: Dinner check-ins complete sensor
+      description: The FamFam "Dinner check-ins complete" binary sensor.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: binary_sensor
+    nudge_time:
+      name: Nudge time
+      description: When to check whether everyone has answered.
+      default: "17:00:00"
+      selector:
+        time:
+    tts_entity:
+      name: Text-to-speech engine
+      description: Only needed when speakers are chosen.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: tts
+    media_players:
+      name: Speakers
+      description: Where to announce the nudge. Leave empty for no announcement.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: media_player
+          multiple: true
+    notify_service:
+      name: Notify action
+      description: >-
+        A notify action such as notify.mobile_app_alexs_phone. Leave empty
+        for no notification.
+      default: ""
+      selector:
+        text:
+
+triggers:
+  - trigger: time
+    at: !input nudge_time
+
+conditions:
+  - condition: state
+    entity_id: !input checkins_sensor
+    state: "off"
+
+variables:
+  checkins_sensor: !input checkins_sensor
+  media_players: !input media_players
+  notify_service: !input notify_service
+  pending: "{{ state_attr(checkins_sensor, 'pending') or [] }}"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ media_players | count > 0 }}"
+    then:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_entity
+        data:
+          media_player_entity_id: !input media_players
+          message: >-
+            Dinner check-in time — still waiting on
+            {{ pending | join(' and ') }}.
+  - if:
+      - condition: template
+        value_template: "{{ notify_service != '' }}"
+    then:
+      - action: "{{ notify_service }}"
+        data:
+          title: "Dinner check-in"
+          message: "Still no dinner answer from: {{ pending | join(', ') }}"
+
+mode: single

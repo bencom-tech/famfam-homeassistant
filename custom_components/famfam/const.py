@@ -24,3 +24,42 @@ EVENT_DEFAULT_DURATION: Final = timedelta(minutes=60)
 # forever while the served event/meal windows never slide. Drop the ETag once
 # the cached payload is this old to force one full refetch.
 STATE_MAX_AGE: Final = timedelta(hours=24)
+
+SERVICE_ADD_EVENT: Final = "add_event"
+SERVICE_SET_DINNER_CHECKIN: Final = "set_dinner_checkin"
+SERVICE_SET_MEAL: Final = "set_meal"
+SERVICE_ADD_MEAL_INGREDIENTS_TO_LIST: Final = "add_meal_ingredients_to_list"
+SERVICE_ADD_LIST_ITEM: Final = "add_list_item"
+SERVICE_START_SHOPPING_TRIP: Final = "start_shopping_trip"
+SERVICE_END_SHOPPING_TRIP: Final = "end_shopping_trip"
+SERVICE_SEARCH_RECIPES: Final = "search_recipes"
+SERVICE_GET_MEAL_PLAN: Final = "get_meal_plan"
+
+ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
+ATTR_SUMMARY: Final = "summary"
+ATTR_DESCRIPTION: Final = "description"
+ATTR_START: Final = "start"
+ATTR_END: Final = "end"
+ATTR_ALL_DAY: Final = "all_day"
+ATTR_MEMBERS: Final = "members"
+ATTR_CALENDAR_ENTITY_ID: Final = "calendar_entity_id"
+ATTR_MEMBER: Final = "member"
+ATTR_DATE: Final = "date"
+ATTR_STATUS: Final = "status"
+ATTR_RECIPE_ID: Final = "recipe_id"
+ATTR_MEAL_NAME: Final = "meal_name"
+ATTR_DATE_FROM: Final = "date_from"
+ATTR_DATE_TO: Final = "date_to"
+ATTR_LIST_ENTITY_ID: Final = "list_entity_id"
+ATTR_ITEM: Final = "item"
+ATTR_CATEGORY: Final = "category"
+ATTR_QUERY: Final = "query"
+ATTR_CUISINE: Final = "cuisine"
+ATTR_DIET: Final = "diet"
+ATTR_FREE_FROM: Final = "free_from"
+ATTR_COURSE: Final = "course"
+ATTR_LIMIT: Final = "limit"
+ATTR_DAYS: Final = "days"
+
+# Server-side cap on the ingredients-to-list date range (haMutationsData.ts).
+INGREDIENTS_RANGE_MAX_DAYS: Final = 31

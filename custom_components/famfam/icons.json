@@ -52,5 +52,34 @@
         "default": "mdi:cart"
       }
     }
+  },
+  "services": {
+    "add_event": {
+      "service": "mdi:calendar-plus"
+    },
+    "set_dinner_checkin": {
+      "service": "mdi:silverware-variant"
+    },
+    "set_meal": {
+      "service": "mdi:pot-steam-outline"
+    },
+    "add_meal_ingredients_to_list": {
+      "service": "mdi:cart-plus"
+    },
+    "add_list_item": {
+      "service": "mdi:playlist-plus"
+    },
+    "start_shopping_trip": {
+      "service": "mdi:cart-arrow-right"
+    },
+    "end_shopping_trip": {
+      "service": "mdi:cart-check"
+    },
+    "search_recipes": {
+      "service": "mdi:chef-hat"
+    },
+    "get_meal_plan": {
+      "service": "mdi:calendar-text"
+    }
   }
 }

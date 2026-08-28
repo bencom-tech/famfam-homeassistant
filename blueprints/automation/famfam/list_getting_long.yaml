@@ -1,0 +1,50 @@
+blueprint:
+  name: "FamFam: list getting long"
+  description: >-
+    When a FamFam list grows past a chosen number of unchecked items, send
+    a notification — a nudge that it's time for a shop.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/list_getting_long.yaml
+  input:
+    list_sensor:
+      name: Items remaining sensor
+      description: The FamFam "Items remaining" sensor to watch.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: sensor
+    threshold:
+      name: Item threshold
+      description: Notify when the list grows above this many unchecked items.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 200
+          mode: box
+    notify_service:
+      name: Notify action
+      description: A notify action such as notify.mobile_app_alexs_phone.
+      selector:
+        text:
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input list_sensor
+    above: !input threshold
+
+variables:
+  notify_service: !input notify_service
+
+actions:
+  - action: "{{ notify_service }}"
+    data:
+      title: "The list is getting long"
+      message: >-
+        {{ trigger.to_state.name }} is up to {{ trigger.to_state.state }}
+        items — might be time for a shop.
+
+mode: single

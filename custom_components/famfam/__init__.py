@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from homeassistant.const import CONF_API_TOKEN, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.typing import ConfigType
 
 from .api import FamFamApiClient
 from .const import DEFAULT_BASE_URL, DOMAIN
 from .coordinator import FamFamConfigEntry, FamFamCoordinator
+from .services import async_setup_services
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -19,6 +21,14 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.TODO,
 ]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the famfam services (they exist even with no entry loaded)."""
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: FamFamConfigEntry) -> bool:

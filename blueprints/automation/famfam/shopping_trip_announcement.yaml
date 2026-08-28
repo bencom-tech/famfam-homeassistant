@@ -1,0 +1,120 @@
+blueprint:
+  name: "FamFam: shopping trip announcement"
+  description: >-
+    When someone heads to the shops, announce it on speakers and send a
+    notification with an "Add an item" reply box — the reply goes straight
+    onto the list.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/shopping_trip_announcement.yaml
+  input:
+    trip_sensor:
+      name: Shopping trip sensor
+      description: The FamFam "Shopping trip" binary sensor.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: binary_sensor
+    list_entity:
+      name: Shopping list
+      description: The FamFam list that notification replies are added to.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: todo
+    tts_entity:
+      name: Text-to-speech engine
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: tts
+    media_players:
+      name: Speakers
+      description: Where to announce the trip. Leave empty for no announcement.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: media_player
+          multiple: true
+    notify_service:
+      name: Notify action
+      description: >-
+        A notify action such as notify.mobile_app_alexs_phone — this is
+        where the "Add an item" reply box appears. Leave empty for no
+        notification.
+      default: ""
+      selector:
+        text:
+    reply_window:
+      name: Reply window
+      description: How long the "Add an item" reply stays usable, in minutes.
+      default: 60
+      selector:
+        number:
+          min: 5
+          max: 240
+          unit_of_measurement: minutes
+          mode: box
+
+triggers:
+  - trigger: state
+    entity_id: !input trip_sensor
+    to: "on"
+
+variables:
+  trip_sensor: !input trip_sensor
+  media_players: !input media_players
+  notify_service: !input notify_service
+  shopper: "{{ state_attr(trip_sensor, 'member') or 'Someone' }}"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ media_players | count > 0 }}"
+    then:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_entity
+        data:
+          media_player_entity_id: !input media_players
+          message: >-
+            {{ shopper }} is heading to the shops — shout if you need
+            anything added to the list.
+  - if:
+      - condition: template
+        value_template: "{{ notify_service != '' }}"
+    then:
+      - action: "{{ notify_service }}"
+        data:
+          title: "Heading to the shops"
+          message: "{{ shopper }} is heading to the shops. Need anything?"
+          data:
+            actions:
+              - action: FAMFAM_TRIP_ADD_ITEM
+                title: "Add an item"
+                behavior: textInput
+      - wait_for_trigger:
+          - trigger: event
+            event_type: mobile_app_notification_action
+            event_data:
+              action: FAMFAM_TRIP_ADD_ITEM
+        timeout:
+          minutes: !input reply_window
+        continue_on_timeout: true
+      - if:
+          - condition: template
+            value_template: >-
+              {{ wait.trigger is not none
+                 and (wait.trigger.event.data.reply_text | default('')) != '' }}
+        then:
+          - action: famfam.add_list_item
+            data:
+              list_entity_id: !input list_entity
+              item: "{{ wait.trigger.event.data.reply_text }}"
+
+mode: restart

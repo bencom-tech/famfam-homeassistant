@@ -12,9 +12,9 @@ own calendar, tonight's-dinner and headcount sensors, and a one-tap
 "heading to the shops" button. One integration, one token, no per-person
 app passwords — a single token covers your whole family.
 
-> **Status:** early development. The to-do, calendar, sensor, binary-sensor
-> and button platforms are available now; services and blueprints are on
-> the way.
+> **Status:** early development, feature-complete for v1. To-do, calendar,
+> sensor, binary-sensor and button platforms, nine services, and six
+> ready-made automation blueprints.
 
 ## Installation
 
@@ -39,7 +39,7 @@ Open the integration's **Configure** dialog to adjust:
 | Option | Default | What it does |
 |---|---|---|
 | Polling interval | 60 s | How often to check famfam.life for changes |
-| Default member | Token's member | Who voice-originated actions act as (used by the upcoming services; trip announcements always act as the token's member) |
+| Default member | Token's member | Who `famfam.set_dinner_checkin` acts on when no member is passed (trip announcements always act as the token's member) |
 | Create a calendar for each member | On | Adds a calendar entity for each family member |
 | Lists to show | All | Which FamFam lists appear as to-do lists |
 
@@ -64,8 +64,8 @@ Calendar notes:
   by choosing "all events".
 - Only the person who created an event can change or delete it — the same
   rule as in the app. Other members' events show a clear error.
-- The meal-plan calendar is read-only for now; a `set_meal_plan` service is
-  coming in a later release.
+- The meal-plan calendar is read-only — meals are written with the
+  `famfam.set_meal` service instead of calendar event mutation.
 - Events are served for a bounded window: 7 days back to 28 days forward
   (meals: 14 days ahead). Calendar views beyond that show nothing.
 - New family members get their calendar after a reload of the integration.
@@ -124,3 +124,87 @@ Notes:
   than typing ids.
 - New family members get their sensors (like their calendar) after a
   reload of the integration.
+
+## Services
+
+Nine services (actions) for automations, scripts and voice — each one
+replaces a pile of helpers and template YAML. All fields have selectors,
+so the automation editor's UI mode works throughout. Every service takes
+an optional `config_entry_id`; you only need it if more than one FamFam
+family is set up.
+
+| Service | What it does |
+|---|---|
+| `famfam.add_event` | Add a single event, for the whole family or chosen members |
+| `famfam.set_dinner_checkin` | Answer a member's dinner check-in — `eating`, `no_meal` or `no_response` (three answers, not a toggle) |
+| `famfam.set_meal` | Set the planned meal for a date, from a recipe or free text |
+| `famfam.add_meal_ingredients_to_list` | Send planned-meal ingredients to a list, with Shop for Meals deduplication |
+| `famfam.add_list_item` | Add an item with an aisle category — which `todo.add_item` can't carry |
+| `famfam.start_shopping_trip` | Announce a shopping trip (FamFam Plus) |
+| `famfam.end_shopping_trip` | End the current trip; a no-op if none is running |
+| `famfam.search_recipes` | Response service: search recipes by text, cuisine, diet, allergen or course |
+| `famfam.get_meal_plan` | Response service: the planned meals from today, up to 14 days |
+
+Add an event for one member, by name:
+
+```yaml
+action: famfam.add_event
+data:
+  summary: Swimming lesson
+  start: "2026-09-01 15:30:00"
+  end: "2026-09-01 16:30:00"
+  members:
+    - Alex
+```
+
+Check a member in as eating tonight (leave `member` off to use the
+default member from the options):
+
+```yaml
+action: famfam.set_dinner_checkin
+data:
+  member: Alex
+  status: eating
+```
+
+The two response services return data into a `response_variable`:
+
+```yaml
+- action: famfam.get_meal_plan
+  data:
+    days: 3
+  response_variable: plan
+- action: notify.mobile_app_alexs_phone
+  data:
+    message: >-
+      {% for m in plan.meals %}{{ m.date }}: {{ m.meal }}
+      {% endfor %}
+```
+
+Service notes:
+
+- Deliberate differences from the original spec: the trip services take no
+  `member` field (the API always attributes trips to the token's member),
+  and `add_event` requires `start`.
+- `add_list_item` exists alongside the standard `todo.add_item` because
+  the native action can't carry a category. Voice via Assist uses
+  `todo.add_item`; automations that know the aisle should use this one.
+- Answering the check-in for **another** member needs a token created by
+  an organiser; permission errors from FamFam surface as clear error
+  messages, never a silent no-op.
+
+## Blueprints
+
+Six ready-made automations. HACS doesn't install an integration's
+blueprints, so import them by URL — each badge below opens the importer
+with the URL pre-filled. Every FamFam entity is a configurable input
+(picked via the entity selector), never a hardcoded id.
+
+| Blueprint | What it does |
+|---|---|
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fdinner_checkin_nudge.yaml) **Dinner check-in nudge** | If check-ins aren't complete at a chosen time, announce it and notify with the names still pending |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fannounce_tonights_dinner.yaml) **Announce tonight's dinner** | At a chosen time, announce the planned meal and headcount |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fauto_start_shopping_trip.yaml) **Auto-start shopping trip** | Someone arrives at the shops with a non-empty list → announce a trip (Plus) |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fshopping_trip_announcement.yaml) **Shopping trip announcement** | A trip starts → announce it, with an "Add an item" notification reply that goes straight onto the list |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Flist_getting_long.yaml) **List getting long** | A list grows past a threshold → notify |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frunoutking%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fevent_tomorrow.yaml) **Event tomorrow** | The next event is tomorrow → notify and/or colour a light |

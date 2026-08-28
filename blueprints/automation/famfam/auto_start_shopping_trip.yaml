@@ -1,0 +1,76 @@
+blueprint:
+  name: "FamFam: auto-start shopping trip on zone entry"
+  description: >-
+    When a chosen person arrives at the shops and the list has enough on
+    it, announce a shopping trip to the family automatically. Trips are a
+    FamFam Plus feature and are attributed to the integration token's
+    member.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/auto_start_shopping_trip.yaml
+  input:
+    persons:
+      name: People
+      description: Whose arrival should start a trip.
+      selector:
+        entity:
+          filter:
+            domain: person
+          multiple: true
+    shop_zone:
+      name: Supermarket zone
+      description: A zone covering the shops.
+      selector:
+        entity:
+          filter:
+            domain: zone
+    list_sensor:
+      name: Items remaining sensor
+      description: The FamFam "Items remaining" sensor for the shopping list.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: sensor
+    min_items:
+      name: Minimum items
+      description: Only start a trip when at least this many items are unchecked.
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    trip_sensor:
+      name: Shopping trip sensor
+      description: >-
+        The FamFam "Shopping trip" binary sensor — stops a second
+        announcement while a trip is already running.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: binary_sensor
+
+triggers:
+  - trigger: zone
+    entity_id: !input persons
+    zone: !input shop_zone
+    event: enter
+
+variables:
+  list_sensor: !input list_sensor
+  min_items: !input min_items
+
+conditions:
+  - condition: template
+    value_template: "{{ states(list_sensor) | int(0) >= min_items | int(1) }}"
+  - condition: state
+    entity_id: !input trip_sensor
+    state: "off"
+
+actions:
+  - action: famfam.start_shopping_trip
+
+mode: single

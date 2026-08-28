@@ -100,6 +100,211 @@
       }
     }
   },
+  "selector": {
+    "checkin_status": {
+      "options": {
+        "eating": "Eating",
+        "no_meal": "Not home for dinner",
+        "no_response": "No answer"
+      }
+    }
+  },
+  "services": {
+    "add_event": {
+      "name": "Add event",
+      "description": "Adds a single event to the family calendar. Repeating events are created in the FamFam app.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "summary": {
+          "name": "Summary",
+          "description": "The event title."
+        },
+        "description": {
+          "name": "Description",
+          "description": "Notes stored on the event."
+        },
+        "start": {
+          "name": "Start",
+          "description": "When the event starts, in the family's timezone."
+        },
+        "end": {
+          "name": "End",
+          "description": "When the event ends. Leave empty for an event with no end time. Events can't span more than one day."
+        },
+        "all_day": {
+          "name": "All day",
+          "description": "Makes an all-day event on the start date."
+        },
+        "members": {
+          "name": "Members",
+          "description": "Member names or ids the event is for. Leave empty for the whole family."
+        },
+        "calendar_entity_id": {
+          "name": "Calendar",
+          "description": "A FamFam calendar to add the event to — a member's calendar assigns the event to that member. Ignored when members is set."
+        }
+      }
+    },
+    "set_dinner_checkin": {
+      "name": "Set dinner check-in",
+      "description": "Answers the dinner check-in for a family member — three answers, matching the app, not an on/off toggle.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "member": {
+          "name": "Member",
+          "description": "Member name or id. Leave empty to use the default member from the integration options."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Defaults to today in the family's timezone."
+        },
+        "status": {
+          "name": "Status",
+          "description": "The member's answer for that day's dinner."
+        }
+      }
+    },
+    "set_meal": {
+      "name": "Set meal",
+      "description": "Sets the planned meal for a date, from a recipe or as free text.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "date": {
+          "name": "Date",
+          "description": "The day the meal is planned for."
+        },
+        "recipe_id": {
+          "name": "Recipe id",
+          "description": "A FamFam recipe id — find one with the search recipes action. Use either this or a meal name, not both."
+        },
+        "meal_name": {
+          "name": "Meal name",
+          "description": "A free-text meal, for when there's no recipe."
+        }
+      }
+    },
+    "add_meal_ingredients_to_list": {
+      "name": "Add meal ingredients to list",
+      "description": "Sends the ingredients for planned meals to a list, using FamFam's Shop for Meals deduplication — ingredients already on the list aren't added twice.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "date_from": {
+          "name": "From",
+          "description": "First day of planned meals to shop for."
+        },
+        "date_to": {
+          "name": "To",
+          "description": "Last day of planned meals to shop for. Defaults to the from date."
+        },
+        "list_entity_id": {
+          "name": "List",
+          "description": "The FamFam list to add ingredients to. Defaults to the grocery list."
+        }
+      }
+    },
+    "add_list_item": {
+      "name": "Add list item",
+      "description": "Adds an item to a FamFam list, optionally straight into an aisle category — which the standard to-do add item action can't do.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "list_entity_id": {
+          "name": "List",
+          "description": "The FamFam list to add the item to."
+        },
+        "item": {
+          "name": "Item",
+          "description": "The item text. Quantities go in the text — for example \"2L milk\"."
+        },
+        "category": {
+          "name": "Category",
+          "description": "The aisle grouping shown on grocery lists."
+        }
+      }
+    },
+    "start_shopping_trip": {
+      "name": "Start shopping trip",
+      "description": "Announces a shopping trip to the whole family, attributed to the member the token belongs to. Trips are a FamFam Plus feature.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        }
+      }
+    },
+    "end_shopping_trip": {
+      "name": "End shopping trip",
+      "description": "Ends the current shopping trip. Does nothing if no trip is running.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        }
+      }
+    },
+    "search_recipes": {
+      "name": "Search recipes",
+      "description": "Searches the family's recipes and returns the matches as response data. All filters are optional and combine.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "query": {
+          "name": "Search text",
+          "description": "Matches against recipe names and ingredients."
+        },
+        "cuisine": {
+          "name": "Cuisine",
+          "description": "A cuisine the recipe must have."
+        },
+        "diet": {
+          "name": "Diet",
+          "description": "A diet the recipe must suit."
+        },
+        "free_from": {
+          "name": "Free from",
+          "description": "An allergen the recipe must be free from."
+        },
+        "course": {
+          "name": "Course",
+          "description": "A course the recipe must have."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "The most recipes to return."
+        }
+      }
+    },
+    "get_meal_plan": {
+      "name": "Get meal plan",
+      "description": "Returns the planned meals as response data, starting from today in the family's timezone.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "days": {
+          "name": "Days",
+          "description": "How many days to include, starting today. FamFam provides up to 14."
+        }
+      }
+    }
+  },
   "exceptions": {
     "setup_auth_failed": {
       "message": "The FamFam token was rejected. Reauthorise the integration with a new token."
@@ -163,6 +368,78 @@
     },
     "trip_already_active": {
       "message": "A shopping trip is already running — end it in the FamFam app first."
+    },
+    "trip_end_failed": {
+      "message": "FamFam couldn't end the shopping trip ({code})."
+    },
+    "checkin_set_failed": {
+      "message": "FamFam couldn't save the dinner check-in ({code})."
+    },
+    "checkin_organiser_only": {
+      "message": "Only an organiser's token can answer the dinner check-in for another family member."
+    },
+    "meal_set_failed": {
+      "message": "FamFam couldn't set the meal ({code})."
+    },
+    "ingredients_add_failed": {
+      "message": "FamFam couldn't add the meal ingredients to the list ({code})."
+    },
+    "recipe_search_failed": {
+      "message": "FamFam couldn't search the recipes ({code})."
+    },
+    "item_limit_reached": {
+      "message": "That FamFam list is full for your plan — check off or delete some items first."
+    },
+    "no_list_access": {
+      "message": "The token's member doesn't have access to that FamFam list."
+    },
+    "member_not_found_server": {
+      "message": "FamFam doesn't recognise that family member — they may have left the family."
+    },
+    "rate_limited": {
+      "message": "FamFam is asking Home Assistant to slow down — try again in a minute."
+    },
+    "service_not_configured": {
+      "message": "FamFam is not set up yet — add the integration first."
+    },
+    "service_entry_not_found": {
+      "message": "No FamFam family matches that config entry id."
+    },
+    "service_entry_not_loaded": {
+      "message": "FamFam is not loaded — fix the connection first, then try again."
+    },
+    "service_multiple_families": {
+      "message": "More than one FamFam family is set up — pass config_entry_id to say which one."
+    },
+    "service_entry_mismatch": {
+      "message": "The chosen entity belongs to a different FamFam family than the given config entry id."
+    },
+    "entity_not_famfam": {
+      "message": "{entity_id} is not a FamFam entity of the right kind for this action."
+    },
+    "list_entity_invalid": {
+      "message": "{entity_id} doesn't map to a FamFam list any more — pick a current list entity."
+    },
+    "calendar_entity_invalid": {
+      "message": "Events can't be added to that calendar — pick a member calendar or the family calendar."
+    },
+    "grocery_list_unresolved": {
+      "message": "Couldn't work out which list is the grocery list — pass a list entity."
+    },
+    "member_required": {
+      "message": "Pass a member, or set a default member in the FamFam options."
+    },
+    "member_not_found": {
+      "message": "No family member matches \"{member}\"."
+    },
+    "member_ambiguous": {
+      "message": "More than one family member is called \"{member}\" — use their member id instead."
+    },
+    "date_range_invalid": {
+      "message": "The end must not be before the start."
+    },
+    "date_range_too_long": {
+      "message": "The date range must span {max_days} days or fewer."
     }
   }
 }

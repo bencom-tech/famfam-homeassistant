@@ -4,8 +4,10 @@
 rules:
   # Bronze
   action-setup:
-    status: exempt
-    comment: No custom services yet (session 10).
+    status: done
+    comment: >-
+      Services registered in async_setup (services.py); handlers resolve the
+      target entry and raise ServiceValidationError when it is not loaded.
   appropriate-polling:
     status: done
     comment: 60s default, ETag/If-None-Match with 304 short-circuit.
@@ -23,8 +25,8 @@ rules:
     status: done
     comment: No requirements; the API client is vendored in the integration.
   docs-actions:
-    status: exempt
-    comment: No custom services yet.
+    status: done
+    comment: All nine services documented in the README.
   docs-high-level-description:
     status: done
     comment: README.

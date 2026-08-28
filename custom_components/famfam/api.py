@@ -191,14 +191,86 @@ class FamFamApiClient:
         """
         await self._request("POST", "/trips", json={"requestId": request_id})
 
-    async def async_search_recipes(self, query: str) -> list[dict[str, Any]]:
+    async def async_end_trip(self) -> None:
+        """End the current shopping trip (DELETE /trips/current).
+
+        Idempotent — ending when no trip is running is a success. Any member
+        may end a trip, not just the one who started it.
+        """
+        await self._request("DELETE", "/trips/current")
+
+    async def async_set_checkin(
+        self, date: str, member_id: str, status: str
+    ) -> None:
+        """Set one member's dinner check-in (PUT /checkins/{date}/{memberId}).
+
+        status: "eating" | "no-meal" | "no-response". The server stamps the
+        answer's source as manual. Answering for another member is
+        organiser-only — the token's member gets a 403 "organiser_only".
+        """
+        await self._request(
+            "PUT", f"/checkins/{date}/{member_id}", json={"status": status}
+        )
+
+    async def async_set_meal(
+        self,
+        date: str,
+        *,
+        recipe_id: str | None = None,
+        free_text: str | None = None,
+    ) -> None:
+        """Set the planned meal for a date (PUT /meals/{date}).
+
+        Exactly one of recipe_id or free_text — the server rejects both or
+        neither.
+        """
+        body: dict[str, Any] = (
+            {"recipeId": recipe_id}
+            if recipe_id is not None
+            else {"freeText": free_text}
+        )
+        await self._request("PUT", f"/meals/{date}", json=body)
+
+    async def async_add_meal_ingredients_to_list(
+        self, date_from: str, date_to: str, list_id: str
+    ) -> None:
+        """Send planned-meal ingredients to a list (POST /meals/ingredients-to-list).
+
+        The server reuses Shop for Meals' deduplication against every
+        existing item. All three fields are required server-side; the range
+        is capped at 31 days.
+        """
+        await self._request(
+            "POST",
+            "/meals/ingredients-to-list",
+            json={"dateFrom": date_from, "dateTo": date_to, "listId": list_id},
+        )
+
+    async def async_search_recipes(
+        self,
+        query: str = "",
+        *,
+        cuisine: str | None = None,
+        diet: str | None = None,
+        free_from: str | None = None,
+        course: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Search the family's recipes (GET /recipes/search).
 
-        Substring match on name and ingredients over the newest 500 recipes,
-        capped at 50 results.
+        `q` is a substring match on name and ingredients; the other filters
+        match against the family's taxonomy values. All are optional and
+        combine — an empty query with filters is a match-all within them.
+        Runs over the newest 500 recipes, capped at 50 results.
         """
-        response = await self._request(
-            "GET", "/recipes/search", params={"q": query}
-        )
+        params = {"q": query}
+        for key, value in (
+            ("cuisine", cuisine),
+            ("diet", diet),
+            ("freeFrom", free_from),
+            ("course", course),
+        ):
+            if value is not None:
+                params[key] = value
+        response = await self._request("GET", "/recipes/search", params=params)
         payload = await response.json()
         return payload.get("recipes", [])
