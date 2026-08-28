@@ -1,0 +1,83 @@
+# Integration quality scale tracking (target: Silver).
+# This file is repo-internal — custom integrations don't declare quality_scale
+# in manifest.json, so this is the working checklist, not a claim.
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: No custom services yet (session 10).
+  appropriate-polling:
+    status: done
+    comment: 60s default, ETag/If-None-Match with 304 short-circuit.
+  brands:
+    status: todo
+    comment: home-assistant/brands PR needed before any HACS default listing.
+  common-modules:
+    status: done
+  config-flow:
+    status: done
+  config-flow-test-coverage:
+    status: todo
+    comment: Tests deferred to a dedicated pass after session 9.
+  dependency-transparency:
+    status: done
+    comment: No requirements; the API client is vendored in the integration.
+  docs-actions:
+    status: exempt
+    comment: No custom services yet.
+  docs-high-level-description:
+    status: done
+    comment: README.
+  docs-installation-instructions:
+    status: done
+    comment: README.
+  docs-removal-instructions:
+    status: todo
+  entity-event-setup:
+    status: exempt
+    comment: The integration registers no events.
+  entity-unique-id:
+    status: done
+    comment: All unique ids prefixed with the family id.
+  has-entity-name:
+    status: done
+  runtime-data:
+    status: done
+  test-before-configure:
+    status: done
+    comment: Config flow validates via GET /bootstrap.
+  test-before-setup:
+    status: done
+    comment: Bootstrap fetched in coordinator _async_setup; ConfigEntryNotReady/AuthFailed.
+  unique-config-entry:
+    status: done
+    comment: unique_id is the family id.
+  # Silver
+  action-exceptions:
+    status: done
+    comment: Mutations raise HomeAssistantError with translation keys carrying the API's machine-readable code.
+  config-entry-unloading:
+    status: done
+  docs-configuration-parameters:
+    status: done
+    comment: Options table in the README.
+  docs-installation-parameters:
+    status: done
+    comment: README.
+  entity-unavailable:
+    status: done
+    comment: Coordinator success plus per-list presence.
+  integration-owner:
+    status: done
+    comment: "@runoutking in manifest codeowners."
+  log-when-unavailable:
+    status: done
+    comment: Handled by DataUpdateCoordinator.
+  parallel-updates:
+    status: done
+    comment: PARALLEL_UPDATES = 0 on the todo platform.
+  reauthentication-flow:
+    status: done
+  test-coverage:
+    status: todo
+    comment: Tests deferred to a dedicated pass after session 9.

@@ -1,0 +1,12 @@
+{
+  "entity": {
+    "todo": {
+      "list": {
+        "default": "mdi:format-list-checks"
+      },
+      "grocery_list": {
+        "default": "mdi:cart"
+      }
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect FamFam",
+        "description": "Paste an integration token from the FamFam app (Settings → Your Family → Connected services). One token covers your whole family.",
+        "data": {
+          "api_token": "Token",
+          "url": "Base URL"
+        },
+        "data_description": {
+          "api_token": "Integration tokens are created by an organiser and shown once.",
+          "url": "Leave as-is unless you are pointing at a staging or self-hosted server."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthorise FamFam",
+        "description": "The token for {family_name} was revoked or is no longer valid. Create a new one in the FamFam app (Settings → Your Family → Connected services) and paste it here.",
+        "data": {
+          "api_token": "Token"
+        },
+        "data_description": {
+          "api_token": "Integration tokens are created by an organiser and shown once."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This family is already configured.",
+      "reauth_successful": "Re-authentication was successful",
+      "unique_id_mismatch": "This token belongs to a different family."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FamFam options",
+        "data": {
+          "poll_interval": "Polling interval",
+          "default_member": "Default member",
+          "create_member_calendars": "Create a calendar for each member",
+          "lists": "Lists to show"
+        },
+        "data_description": {
+          "poll_interval": "How often to check famfam.life for changes, in seconds.",
+          "default_member": "Who button presses and voice-originated actions act as. Leave empty to act as the token's member.",
+          "create_member_calendars": "Takes effect when the calendar platform is added.",
+          "lists": "Which FamFam lists appear as to-do lists. While every list is selected, new lists appear automatically."
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "FamFam is not loaded. Fix the connection first, then adjust options."
+    }
+  },
+  "exceptions": {
+    "setup_auth_failed": {
+      "message": "The FamFam token was rejected. Reauthorise the integration with a new token."
+    },
+    "setup_connect_failed": {
+      "message": "Could not reach FamFam to set up the integration."
+    },
+    "auth_failed": {
+      "message": "The FamFam token was rejected."
+    },
+    "update_failed": {
+      "message": "Could not fetch the latest data from FamFam."
+    },
+    "item_not_found": {
+      "message": "That item no longer exists on the FamFam list."
+    },
+    "item_create_failed": {
+      "message": "FamFam couldn't add the item ({code})."
+    },
+    "item_update_failed": {
+      "message": "FamFam couldn't update the item ({code})."
+    },
+    "item_delete_failed": {
+      "message": "FamFam couldn't delete the item ({code})."
+    }
+  }
+}
