@@ -12,7 +12,13 @@ from .api import FamFamApiClient
 from .const import DEFAULT_BASE_URL, DOMAIN
 from .coordinator import FamFamConfigEntry, FamFamCoordinator
 
-PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.TODO]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.CALENDAR,
+    Platform.SENSOR,
+    Platform.TODO,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: FamFamConfigEntry) -> bool:

@@ -17,8 +17,13 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import FamFamApiError
-from .const import CONF_LISTS, DOMAIN
-from .coordinator import FamFamConfigEntry, FamFamCoordinator, FamFamList
+from .const import DOMAIN
+from .coordinator import (
+    FamFamConfigEntry,
+    FamFamCoordinator,
+    FamFamList,
+    exposed_list_ids,
+)
 from .entity import FamFamEntity
 
 PARALLEL_UPDATES = 0
@@ -34,16 +39,9 @@ async def async_setup_entry(
     family_id = coordinator.bootstrap.family_id
     known: set[str] = set()
 
-    def _exposed_ids() -> set[str]:
-        ids = set(coordinator.data.lists)
-        # Absent key means all lists — new FamFam lists appear automatically.
-        if CONF_LISTS in entry.options:
-            ids &= set(entry.options[CONF_LISTS])
-        return ids
-
     @callback
     def _sync_entities() -> None:
-        exposed = _exposed_ids()
+        exposed = exposed_list_ids(coordinator, entry)
         if new_ids := exposed - known:
             async_add_entities(
                 FamFamTodoListEntity(coordinator, list_id) for list_id in new_ids

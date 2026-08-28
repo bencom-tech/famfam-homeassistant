@@ -1,5 +1,24 @@
 {
   "entity": {
+    "binary_sensor": {
+      "shopping_trip_active": {
+        "default": "mdi:cart-arrow-right",
+        "state": {
+          "off": "mdi:cart-outline"
+        }
+      },
+      "home_for_dinner": {
+        "default": "mdi:silverware"
+      },
+      "dinner_checkins_complete": {
+        "default": "mdi:checkbox-marked-circle-outline"
+      }
+    },
+    "button": {
+      "heading_to_the_shops": {
+        "default": "mdi:cart-arrow-right"
+      }
+    },
     "calendar": {
       "family": {
         "default": "mdi:calendar-multiple"
@@ -9,6 +28,20 @@
       },
       "meals": {
         "default": "mdi:silverware-fork-knife"
+      }
+    },
+    "sensor": {
+      "tonights_dinner": {
+        "default": "mdi:pot-steam"
+      },
+      "dinner_headcount": {
+        "default": "mdi:account-group"
+      },
+      "list_remaining": {
+        "default": "mdi:counter"
+      },
+      "next_event": {
+        "default": "mdi:calendar-clock"
       }
     },
     "todo": {

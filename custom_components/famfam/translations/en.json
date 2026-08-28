@@ -58,6 +58,22 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "shopping_trip_active": {
+        "name": "Shopping trip"
+      },
+      "home_for_dinner": {
+        "name": "Home for dinner"
+      },
+      "dinner_checkins_complete": {
+        "name": "Dinner check-ins complete"
+      }
+    },
+    "button": {
+      "heading_to_the_shops": {
+        "name": "Heading to the shops"
+      }
+    },
     "calendar": {
       "family": {
         "name": "Family calendar"
@@ -67,6 +83,20 @@
       },
       "meals": {
         "name": "Meal plan"
+      }
+    },
+    "sensor": {
+      "tonights_dinner": {
+        "name": "Tonight's dinner"
+      },
+      "dinner_headcount": {
+        "name": "Dinner headcount"
+      },
+      "list_remaining": {
+        "name": "Items remaining"
+      },
+      "next_event": {
+        "name": "Next event"
       }
     }
   },
@@ -124,6 +154,15 @@
     },
     "event_multi_day_not_supported": {
       "message": "FamFam events can't span more than one day."
+    },
+    "trip_start_failed": {
+      "message": "FamFam couldn't start the shopping trip ({code})."
+    },
+    "trip_plus_required": {
+      "message": "Shopping trip announcements need a FamFam Plus subscription."
+    },
+    "trip_already_active": {
+      "message": "A shopping trip is already running — end it in the FamFam app first."
     }
   }
 }

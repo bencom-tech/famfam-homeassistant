@@ -7,9 +7,10 @@ not an error. Payload field names match the server's haData.ts shapes.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timedelta, tzinfo
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,7 +19,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import FamFamApiClient, FamFamApiError, FamFamAuthError, FamFamConnectionError
-from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN, STATE_MAX_AGE
+from .const import (
+    CONF_LISTS,
+    CONF_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL,
+    DOMAIN,
+    STATE_MAX_AGE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,12 +164,48 @@ class FamFamMeal:
 
 
 @dataclass(slots=True)
-class FamFamData:
-    """Parsed coordinator data.
+class FamFamCheckinDay:
+    """One day's dinner check-ins from the state payload.
 
-    Lists, events and meals are typed; the raw payload is retained for the
-    sensor platforms of later sessions (check-ins, trip).
+    A uid absent from responses means no answer yet; a uid absent from
+    sources means a manual answer (the server's fail-open rule).
     """
+
+    date: str
+    responses: dict[str, str]
+    guests: dict[str, int]
+    sources: dict[str, str]
+
+
+@dataclass(slots=True)
+class FamFamTrip:
+    """An active shopping trip from the state payload.
+
+    The server omits already-expired trips, but a 304-quiet family keeps
+    serving the cached one — readers must still check expires_at.
+    """
+
+    started_by_uid: str
+    started_at: str | None
+    expires_at: str
+    window_minutes: int
+    store_name: str | None
+
+
+@dataclass(slots=True)
+class FamFamRecipe:
+    """A recipe hit from GET /recipes/search (dinner-sensor enrichment)."""
+
+    id: str
+    name: str
+    servings: int | None
+    prep_time: int | None
+    cook_time: int | None
+
+
+@dataclass(slots=True)
+class FamFamData:
+    """Parsed coordinator data."""
 
     state_version: int
     generated_at: str
@@ -170,7 +213,8 @@ class FamFamData:
     lists: dict[str, FamFamList]
     events: list[FamFamEvent]
     meals: list[FamFamMeal]
-    raw: dict[str, Any]
+    checkins: dict[str, FamFamCheckinDay]
+    trip: FamFamTrip | None
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> FamFamData:
@@ -225,6 +269,24 @@ class FamFamData:
             )
             for meal in payload.get("meals", [])
         ]
+        checkins = {
+            day["date"]: FamFamCheckinDay(
+                date=day["date"],
+                responses=dict(day.get("responses") or {}),
+                guests=dict(day.get("guests") or {}),
+                sources=dict(day.get("sources") or {}),
+            )
+            for day in payload.get("checkins", [])
+        }
+        trip = None
+        if raw_trip := payload.get("trip"):
+            trip = FamFamTrip(
+                started_by_uid=raw_trip.get("startedByUid", ""),
+                started_at=raw_trip.get("startedAt"),
+                expires_at=raw_trip.get("expiresAt", ""),
+                window_minutes=raw_trip.get("windowMinutes", 0),
+                store_name=raw_trip.get("storeName"),
+            )
         return cls(
             state_version=payload.get("stateVersion", 0),
             generated_at=payload.get("generatedAt", ""),
@@ -232,8 +294,20 @@ class FamFamData:
             lists=lists,
             events=events,
             meals=meals,
-            raw=payload,
+            checkins=checkins,
+            trip=trip,
         )
+
+
+def exposed_list_ids(
+    coordinator: FamFamCoordinator, entry: FamFamConfigEntry
+) -> set[str]:
+    """The list ids the user chose to expose as entities."""
+    ids = set(coordinator.data.lists)
+    # Absent key means all lists — new FamFam lists appear automatically.
+    if CONF_LISTS in entry.options:
+        ids &= set(entry.options[CONF_LISTS])
+    return ids
 
 
 class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
@@ -262,6 +336,11 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         )
         self.client = client
         self.etag: str | None = None
+        # Enrichment for the tonight's-dinner sensor: meals carry only a
+        # recipeId, so servings/prep/cook come from a recipe search cached
+        # here and refreshed only when tonight's recipe changes.
+        self.tonight_recipe: FamFamRecipe | None = None
+        self._enriched_recipe_id: str | None = None
 
     async def _async_setup(self) -> None:
         """Fetch the family shape once per (re)load."""
@@ -306,7 +385,65 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         if not result.changed:
             # 304 — nothing changed since the last poll. The first refresh can
             # never 304 because there is no ETag yet, so self.data is set.
+            # Enrichment still runs: at midnight "tonight" rolls to a meal
+            # already present in the unchanged payload.
+            await self._async_enrich_tonights_recipe(self.data)
             return self.data
         self.etag = result.etag
         assert result.payload is not None
-        return FamFamData.from_payload(result.payload)
+        data = FamFamData.from_payload(result.payload)
+        await self._async_enrich_tonights_recipe(data)
+        return data
+
+    @property
+    def family_tz(self) -> tzinfo:
+        """The family's timezone, falling back to HA's configured zone."""
+        tz_name = self.data.timezone if self.data else self.bootstrap.timezone
+        if tz_name:
+            try:
+                return ZoneInfo(tz_name)
+            except (ZoneInfoNotFoundError, ValueError):
+                pass
+        return dt_util.get_default_time_zone()
+
+    def family_today(self) -> str:
+        """Today's date key ("tonight") in the family's timezone."""
+        return dt_util.now(self.family_tz).date().isoformat()
+
+    async def _async_enrich_tonights_recipe(self, data: FamFamData) -> None:
+        """Cache tonight's recipe details for the dinner sensor.
+
+        Never fails the update: a broken search just leaves the attributes
+        null until the next poll retries.
+        """
+        today = self.family_today()
+        meal = next((m for m in data.meals if m.date == today), None)
+        recipe_id = meal.recipe_id if meal else None
+        if recipe_id == self._enriched_recipe_id:
+            return
+        if not recipe_id:
+            self.tonight_recipe = None
+            self._enriched_recipe_id = None
+            return
+        assert meal is not None
+        try:
+            recipes = await self.client.async_search_recipes(meal.meal)
+        except (FamFamConnectionError, FamFamApiError) as err:
+            # Leave the change guard unset so the next poll retries.
+            _LOGGER.debug("Recipe search failed, will retry: %s", err)
+            return
+        hit = next((r for r in recipes if r.get("id") == recipe_id), None)
+        # A miss (renamed meal, >50 matches) is deterministic — cache it so
+        # every poll doesn't repeat the same fruitless search.
+        self.tonight_recipe = (
+            FamFamRecipe(
+                id=recipe_id,
+                name=hit.get("name", ""),
+                servings=hit.get("servings"),
+                prep_time=hit.get("prepTime"),
+                cook_time=hit.get("cookTime"),
+            )
+            if hit
+            else None
+        )
+        self._enriched_recipe_id = recipe_id

@@ -8,9 +8,8 @@ server pre-expanded into occurrences; writes are single events only in v1.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta
 from typing import Any, NoReturn
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.components.calendar import (
     DOMAIN as CALENDAR_DOMAIN,
@@ -92,16 +91,6 @@ async def async_setup_entry(
             entity_registry.async_remove(reg_entry.entity_id)
 
     async_add_entities(entities)
-
-
-def _family_tz(coordinator: FamFamCoordinator) -> tzinfo:
-    """The family's timezone, falling back to HA's configured zone."""
-    if tz_name := coordinator.data.timezone:
-        try:
-            return ZoneInfo(tz_name)
-        except (ZoneInfoNotFoundError, ValueError):
-            pass
-    return dt_util.get_default_time_zone()
 
 
 def _to_calendar_event(famfam_event: FamFamEvent) -> CalendarEvent:
@@ -226,7 +215,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         body: dict[str, Any] = {"title": kwargs[EVENT_SUMMARY]}
         if isinstance(dtstart, datetime):
             # The server stores wall-clock date + HH:mm in the family zone.
-            tz = _family_tz(self.coordinator)
+            tz = self.coordinator.family_tz
             local_start = dtstart.astimezone(tz)
             local_end = dtend.astimezone(tz)
             if local_end.date() != local_start.date():
@@ -296,7 +285,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         dtstart = event.get(EVENT_START)
         dtend = event.get(EVENT_END)
         if isinstance(dtstart, datetime):
-            tz = _family_tz(self.coordinator)
+            tz = self.coordinator.family_tz
             local_start = dtstart.astimezone(tz)
             local_end = dtend.astimezone(tz) if isinstance(dtend, datetime) else None
             start_time = local_start.strftime("%H:%M")

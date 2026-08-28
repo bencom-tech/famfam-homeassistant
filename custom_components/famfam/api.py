@@ -70,6 +70,7 @@ class FamFamApiClient:
         path: str,
         *,
         json: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> aiohttp.ClientResponse:
         # The token must never appear in logs at any level.
@@ -82,6 +83,7 @@ class FamFamApiClient:
                 method,
                 f"{self._base_url}{API_PREFIX}{path}",
                 json=json,
+                params=params,
                 headers=headers,
                 timeout=REQUEST_TIMEOUT,
             )
@@ -179,3 +181,24 @@ class FamFamApiClient:
     async def async_delete_event(self, event_id: str) -> None:
         """Delete an event (the whole series for repeating events)."""
         await self._request("DELETE", f"/events/{event_id}")
+
+    async def async_start_trip(self, request_id: str) -> None:
+        """Announce a shopping trip (POST /trips).
+
+        The server attributes the trip to the token's acting member and
+        applies its default window; requestId dedupes transport retries.
+        Plus-gated: a free family gets a 403 with code "plus_required".
+        """
+        await self._request("POST", "/trips", json={"requestId": request_id})
+
+    async def async_search_recipes(self, query: str) -> list[dict[str, Any]]:
+        """Search the family's recipes (GET /recipes/search).
+
+        Substring match on name and ingredients over the newest 500 recipes,
+        capped at 50 results.
+        """
+        response = await self._request(
+            "GET", "/recipes/search", params={"q": query}
+        )
+        payload = await response.json()
+        return payload.get("recipes", [])

@@ -32,4 +32,6 @@ async def async_get_config_entry_diagnostics(
         },
         "events": [asdict(event) for event in coordinator.data.events],
         "meals": [asdict(meal) for meal in coordinator.data.meals],
+        "checkins": [asdict(day) for day in coordinator.data.checkins.values()],
+        "trip": asdict(trip) if (trip := coordinator.data.trip) else None,
     }

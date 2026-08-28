@@ -55,7 +55,10 @@ rules:
   # Silver
   action-exceptions:
     status: done
-    comment: Mutations raise HomeAssistantError with translation keys carrying the API's machine-readable code.
+    comment: >-
+      Mutations raise HomeAssistantError with translation keys carrying the
+      API's machine-readable code; the trip button maps plus_required and
+      trip_active to dedicated messages.
   config-entry-unloading:
     status: done
   docs-configuration-parameters:
@@ -75,7 +78,7 @@ rules:
     comment: Handled by DataUpdateCoordinator.
   parallel-updates:
     status: done
-    comment: PARALLEL_UPDATES = 0 on the todo and calendar platforms.
+    comment: PARALLEL_UPDATES = 0 on all five platforms.
   reauthentication-flow:
     status: done
   test-coverage:
