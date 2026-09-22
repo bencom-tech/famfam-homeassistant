@@ -32,6 +32,17 @@ into the config flow. That's the whole setup: install, paste one token, done.
 
 If you revoke a token, allow a minute or so for it to stop working.
 
+### Changing the token later
+
+Go to **Settings → Devices & services → FamFam**, open the entry's
+**⋮** menu and choose **Reconfigure**. Paste the new token and the
+integration reloads with it — your options, entities and automations are
+kept. The new token has to belong to the same family.
+
+If the token has already been revoked, Home Assistant offers a
+**Re-authenticate** prompt on the FamFam card instead; either route accepts a
+fresh token.
+
 ## Options
 
 Open the integration's **Configure** dialog to adjust:

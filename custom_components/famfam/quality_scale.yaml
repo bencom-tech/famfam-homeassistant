@@ -86,3 +86,9 @@ rules:
   test-coverage:
     status: todo
     comment: Tests deferred to a dedicated pass after session 9.
+  # Gold (not the current target; recorded where already satisfied)
+  reconfiguration-flow:
+    status: done
+    comment: >-
+      Reconfigure step swaps the token and base URL on a working entry,
+      guarded by the same family-id check as reauth.

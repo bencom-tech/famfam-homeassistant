@@ -141,6 +141,37 @@ class FamFamConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"family_name": reauth_entry.title},
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Swap the token (and base URL) on an entry that still works."""
+        errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+        if user_input is not None:
+            base_url = user_input.get(CONF_URL, DEFAULT_BASE_URL)
+            if not (
+                errors := await self._async_validate(
+                    user_input[CONF_API_TOKEN], base_url
+                )
+            ):
+                self._abort_if_unique_id_mismatch(reason="unique_id_mismatch")
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data_updates={
+                        CONF_API_TOKEN: user_input[CONF_API_TOKEN],
+                        CONF_URL: base_url,
+                    },
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA,
+                {CONF_URL: reconfigure_entry.data.get(CONF_URL, DEFAULT_BASE_URL)},
+            ),
+            errors=errors,
+            description_placeholders={"family_name": reconfigure_entry.title},
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry) -> FamFamOptionsFlow:

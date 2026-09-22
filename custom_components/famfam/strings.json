@@ -22,6 +22,18 @@
         "data_description": {
           "api_token": "Integration tokens are created by an organiser and shown once."
         }
+      },
+      "reconfigure": {
+        "title": "Change the FamFam token",
+        "description": "Paste a new integration token for {family_name}. Create one in the FamFam app (Settings → Your Family → Connected services). The new token must belong to the same family.",
+        "data": {
+          "api_token": "Token",
+          "url": "Base URL"
+        },
+        "data_description": {
+          "api_token": "The current token is never shown — paste the new one. Integration tokens are created by an organiser and shown once.",
+          "url": "Leave as-is unless you are pointing at a staging or self-hosted server."
+        }
       }
     },
     "error": {
@@ -32,6 +44,7 @@
     "abort": {
       "already_configured": "This family is already configured.",
       "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "The FamFam token was updated.",
       "unique_id_mismatch": "This token belongs to a different family."
     }
   },
