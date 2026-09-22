@@ -1,12 +1,12 @@
 {
   "domain": "famfam",
   "name": "FamFam",
-  "codeowners": ["@runoutking"],
+  "codeowners": ["@bencom-tech"],
   "config_flow": true,
-  "documentation": "https://github.com/runoutking/famfam-homeassistant",
+  "documentation": "https://github.com/bencom-tech/famfam-homeassistant",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/runoutking/famfam-homeassistant/issues",
+  "issue_tracker": "https://github.com/bencom-tech/famfam-homeassistant/issues",
   "requirements": [],
   "version": "0.4.0"
 }

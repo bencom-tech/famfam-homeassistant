@@ -6,7 +6,7 @@ blueprint:
   domain: automation
   homeassistant:
     min_version: "2025.8.0"
-  source_url: https://github.com/runoutking/famfam-homeassistant/blob/main/blueprints/automation/famfam/announce_tonights_dinner.yaml
+  source_url: https://github.com/bencom-tech/famfam-homeassistant/blob/main/blueprints/automation/famfam/announce_tonights_dinner.yaml
   input:
     dinner_sensor:
       name: Tonight's dinner sensor
