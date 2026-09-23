@@ -395,6 +395,17 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         await self._async_enrich_tonights_recipe(data)
         return data
 
+    async def async_refresh_after_write(self) -> None:
+        """Refresh after one of our own writes, bypassing the ETag.
+
+        The server bumps stateVersion from a trailing task ~10s after a write,
+        so an ETag'd GET straight after it 304s over stale data and the change
+        only shows on the next poll. Without the ETag /state reads live. The
+        delayed bump later costs one extra full fetch, never staleness.
+        """
+        self.etag = None
+        await self.async_refresh()
+
     @property
     def family_tz(self) -> tzinfo:
         """The family's timezone, falling back to HA's configured zone."""

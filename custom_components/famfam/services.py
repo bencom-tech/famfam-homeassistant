@@ -354,7 +354,7 @@ async def _async_add_event(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("event_create_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_set_dinner_checkin(call: ServiceCall) -> None:
@@ -376,7 +376,7 @@ async def _async_set_dinner_checkin(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("checkin_set_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_set_meal(call: ServiceCall) -> None:
@@ -392,7 +392,7 @@ async def _async_set_meal(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("meal_set_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_add_meal_ingredients_to_list(call: ServiceCall) -> None:
@@ -425,7 +425,7 @@ async def _async_add_meal_ingredients_to_list(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("ingredients_add_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_add_list_item(call: ServiceCall) -> None:
@@ -444,7 +444,7 @@ async def _async_add_list_item(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("item_create_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_start_shopping_trip(call: ServiceCall) -> None:
@@ -460,7 +460,7 @@ async def _async_start_shopping_trip(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("trip_start_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_end_shopping_trip(call: ServiceCall) -> None:
@@ -471,7 +471,7 @@ async def _async_end_shopping_trip(call: ServiceCall) -> None:
     except FamFamApiError as err:
         _raise_write_error("trip_end_failed", err)
     finally:
-        await coordinator.async_refresh()
+        await coordinator.async_refresh_after_write()
 
 
 async def _async_search_recipes(call: ServiceCall) -> ServiceResponse:

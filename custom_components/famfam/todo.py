@@ -136,7 +136,7 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 translation_placeholders={"code": err.code},
             ) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """PATCH only the fields that actually changed (data-loss guard)."""
@@ -168,7 +168,7 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 translation_placeholders={"code": err.code},
             ) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete items from the list."""
@@ -182,4 +182,4 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 translation_placeholders={"code": err.code},
             ) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()

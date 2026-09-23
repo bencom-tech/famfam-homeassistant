@@ -72,4 +72,4 @@ class FamFamHeadingToTheShopsButton(FamFamEntity, ButtonEntity):
         finally:
             # Success shows the trip sensor within this refresh; a 409 against
             # a stale local view heals the same way.
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()

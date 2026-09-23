@@ -240,7 +240,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         except FamFamApiError as err:
             raise self._write_error("event_create_failed", err) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()
 
     async def async_update_event(
         self,
@@ -267,7 +267,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         except FamFamApiError as err:
             raise self._write_error("event_update_failed", err) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()
 
     def _diff_event(
         self, current: FamFamEvent, event: dict[str, Any]
@@ -368,7 +368,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         except FamFamApiError as err:
             raise self._write_error("event_delete_failed", err) from err
         finally:
-            await self.coordinator.async_refresh()
+            await self.coordinator.async_refresh_after_write()
 
 
 class FamFamFamilyCalendar(FamFamWritableCalendar):
