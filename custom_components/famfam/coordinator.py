@@ -10,11 +10,14 @@ from dataclasses import dataclass
 from datetime import timedelta, tzinfo
 import logging
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    ConfigEntryNotReady,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -336,6 +339,9 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         )
         self.client = client
         self.etag: str | None = None
+        # Resolved off the event loop by _async_resolve_family_tz.
+        self._family_tz: tzinfo | None = None
+        self._family_tz_name = ""
         # Enrichment for the tonight's-dinner sensor: meals carry only a
         # recipeId, so servings/prep/cook come from a recipe search cached
         # here and refreshed only when tonight's recipe changes.
@@ -351,12 +357,32 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
                 translation_domain=DOMAIN,
                 translation_key="setup_auth_failed",
             ) from err
-        except (FamFamConnectionError, FamFamApiError) as err:
+        except FamFamConnectionError as err:
             raise ConfigEntryNotReady(
                 translation_domain=DOMAIN,
                 translation_key="setup_connect_failed",
             ) from err
-        self.bootstrap = FamFamBootstrap.from_payload(payload)
+        except FamFamApiError as err:
+            if err.code == "rate_limited":
+                raise ConfigEntryNotReady(
+                    translation_domain=DOMAIN,
+                    translation_key="setup_connect_failed",
+                ) from err
+            # Any other rejection won't fix itself on retry.
+            raise ConfigEntryError(
+                translation_domain=DOMAIN,
+                translation_key="setup_rejected",
+                translation_placeholders={"code": err.code},
+            ) from err
+        try:
+            self.bootstrap = FamFamBootstrap.from_payload(payload)
+        except (KeyError, TypeError) as err:
+            raise ConfigEntryError(
+                translation_domain=DOMAIN,
+                translation_key="setup_rejected",
+                translation_placeholders={"code": "invalid_response"},
+            ) from err
+        await self._async_resolve_family_tz(self.bootstrap.timezone)
 
     async def _async_update_data(self) -> FamFamData:
         """Fetch the state, honouring the ETag."""
@@ -392,6 +418,9 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         self.etag = result.etag
         assert result.payload is not None
         data = FamFamData.from_payload(result.payload)
+        await self._async_resolve_family_tz(
+            data.timezone or self.bootstrap.timezone
+        )
         await self._async_enrich_tonights_recipe(data)
         return data
 
@@ -408,14 +437,22 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
 
     @property
     def family_tz(self) -> tzinfo:
-        """The family's timezone, falling back to HA's configured zone."""
-        tz_name = self.data.timezone if self.data else self.bootstrap.timezone
-        if tz_name:
-            try:
-                return ZoneInfo(tz_name)
-            except (ZoneInfoNotFoundError, ValueError):
-                pass
-        return dt_util.get_default_time_zone()
+        """The family's timezone, falling back to HA's configured zone.
+
+        Resolved ahead of time by _async_resolve_family_tz: loading a zone HA
+        hasn't cached reads tzdata from disk, which must not happen on the
+        event loop (this property runs inside entity state reads).
+        """
+        return self._family_tz or dt_util.get_default_time_zone()
+
+    async def _async_resolve_family_tz(self, tz_name: str) -> None:
+        """Cache the family's zone, reloading only when the name changes."""
+        if tz_name == self._family_tz_name:
+            return
+        self._family_tz_name = tz_name
+        self._family_tz = (
+            await dt_util.async_get_time_zone(tz_name) if tz_name else None
+        )
 
     def family_today(self) -> str:
         """Today's date key ("tonight") in the family's timezone."""

@@ -10,7 +10,7 @@ blueprint:
   input:
     list_sensor:
       name: Items remaining sensor
-      description: The FamFam "Items remaining" sensor to watch.
+      description: The FamFam "… remaining" sensor of the list to watch.
       selector:
         entity:
           filter:

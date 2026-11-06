@@ -59,6 +59,7 @@ conditions:
 
 variables:
   checkins_sensor: !input checkins_sensor
+  tts_entity: !input tts_entity
   media_players: !input media_players
   notify_service: !input notify_service
   pending: "{{ state_attr(checkins_sensor, 'pending') or [] }}"
@@ -66,7 +67,8 @@ variables:
 actions:
   - if:
       - condition: template
-        value_template: "{{ media_players | count > 0 }}"
+        value_template: >-
+          {{ media_players | count > 0 and tts_entity | length > 0 }}
     then:
       - action: tts.speak
         target:

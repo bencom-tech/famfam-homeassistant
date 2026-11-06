@@ -50,7 +50,7 @@ Open the integration's **Configure** dialog to adjust:
 | Option | Default | What it does |
 |---|---|---|
 | Polling interval | 60 s | How often to check famfam.life for changes |
-| Default member | Token's member | Who `famfam.set_dinner_checkin` acts on when no member is passed (trip announcements always act as the token's member) |
+| Default member | None | Who `famfam.set_dinner_checkin` acts on when no member is passed. With no default, that action needs a `member` (trip announcements always act as the token's member) |
 | Create a calendar for each member | On | Adds a calendar entity for each family member |
 | Lists to show | All | Which FamFam lists appear as to-do lists |
 
@@ -71,8 +71,11 @@ Calendar notes:
 
 - **Writes are single events only** — repeating events are created and
   edited in the FamFam app. (The Google Calendar integration has the same
-  limitation.) A repeating series can still be deleted from Home Assistant
-  by choosing "all events".
+  limitation.) To delete a whole repeating series from Home Assistant, open
+  its **first** occurrence and choose "Delete this and future events".
+  Single occurrences can't be deleted from Home Assistant, and neither can
+  a series whose first occurrence is more than 7 days ago (it is outside
+  the served window). Use the FamFam app for those.
 - Only the person who created an event can change or delete it — the same
   rule as in the app. Other members' events show a clear error.
 - The meal-plan calendar is read-only — meals are written with the
@@ -85,8 +88,9 @@ Calendar notes:
 
 - A `todo` entity per FamFam list, grouped under a **FamFam — {family}** hub
   device, with a `categories` attribute exposing the aisle grouping on
-  grocery lists.
-- A **remaining-items sensor** per list — the number of unchecked items,
+  grocery lists and an `item_categories` attribute mapping each item to its
+  aisle. Neither attribute is written to the recorder.
+- A **"{list} remaining" sensor** per list — the number of unchecked items,
   with `categories` and `oldest_item_added` attributes. Handy for a "12
   items on the grocery list" badge or a stale-list nag.
 
@@ -218,4 +222,15 @@ with the URL pre-filled. Every FamFam entity is a configurable input
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fauto_start_shopping_trip.yaml) **Auto-start shopping trip** | Someone arrives at the shops with a non-empty list → announce a trip (Plus) |
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fshopping_trip_announcement.yaml) **Shopping trip announcement** | A trip starts → announce it, with an "Add an item" notification reply that goes straight onto the list |
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Flist_getting_long.yaml) **List getting long** | A list grows past a threshold → notify |
-| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fevent_tomorrow.yaml) **Event tomorrow** | The next event is tomorrow → notify and/or colour a light |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fevent_tomorrow.yaml) **Events tomorrow** | At a chosen time, read tomorrow's events from a FamFam calendar → notify and/or colour a light |
+
+## Removing the integration
+
+1. Go to **Settings → Devices & services → FamFam**, open the entry's **⋮**
+   menu and choose **Delete**. Its devices, entities and options go with it.
+2. In HACS, open **FamFam**, choose **Remove**, then restart Home Assistant.
+3. In the FamFam app, revoke the token under **Settings → Your Family →
+   Connected services** so it can't be used again.
+
+Imported blueprints stay under **Settings → Automations & scenes →
+Blueprints** until you delete them there.

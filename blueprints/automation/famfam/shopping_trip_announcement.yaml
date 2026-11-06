@@ -68,14 +68,19 @@ triggers:
 
 variables:
   trip_sensor: !input trip_sensor
+  tts_entity: !input tts_entity
   media_players: !input media_players
   notify_service: !input notify_service
   shopper: "{{ state_attr(trip_sensor, 'member') or 'Someone' }}"
+  # Unique per run, so several instances (or other automations) never
+  # catch each other's replies.
+  action_id: "{{ 'FAMFAM_TRIP_ADD_ITEM_' ~ context.id }}"
 
 actions:
   - if:
       - condition: template
-        value_template: "{{ media_players | count > 0 }}"
+        value_template: >-
+          {{ media_players | count > 0 and tts_entity | length > 0 }}
     then:
       - action: tts.speak
         target:
@@ -95,14 +100,14 @@ actions:
           message: "{{ shopper }} is heading to the shops. Need anything?"
           data:
             actions:
-              - action: FAMFAM_TRIP_ADD_ITEM
+              - action: "{{ action_id }}"
                 title: "Add an item"
                 behavior: textInput
       - wait_for_trigger:
           - trigger: event
             event_type: mobile_app_notification_action
             event_data:
-              action: FAMFAM_TRIP_ADD_ITEM
+              action: "{{ action_id }}"
         timeout:
           minutes: !input reply_window
         continue_on_timeout: true

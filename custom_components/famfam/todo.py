@@ -25,6 +25,7 @@ from .coordinator import (
     exposed_list_ids,
 )
 from .entity import FamFamEntity
+from .util import api_error
 
 PARALLEL_UPDATES = 0
 
@@ -70,6 +71,8 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
         | TodoListEntityFeature.UPDATE_TODO_ITEM
         | TodoListEntityFeature.DELETE_TODO_ITEM
     )
+    # The aisle map grows with the list; keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"categories", "item_categories"})
 
     def __init__(self, coordinator: FamFamCoordinator, list_id: str) -> None:
         """Initialise for one list."""
@@ -77,10 +80,10 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
         self._list_id = list_id
         famfam_list = coordinator.data.lists[list_id]
         self._attr_unique_id = f"{coordinator.bootstrap.family_id}_{list_id}"
-        self._attr_name = famfam_list.name
         self._attr_translation_key = (
             "grocery_list" if famfam_list.is_grocery else "list"
         )
+        self._attr_translation_placeholders = {"list_name": famfam_list.name}
 
     @property
     def _list(self) -> FamFamList | None:
@@ -130,11 +133,7 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 self._list_id, item.summary or ""
             )
         except FamFamApiError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="item_create_failed",
-                translation_placeholders={"code": err.code},
-            ) from err
+            raise api_error("item_create_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
 
@@ -162,11 +161,7 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 self._list_id, item.uid, changes
             )
         except FamFamApiError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="item_update_failed",
-                translation_placeholders={"code": err.code},
-            ) from err
+            raise api_error("item_update_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
 
@@ -176,10 +171,6 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
             for uid in uids:
                 await self.coordinator.client.async_delete_item(self._list_id, uid)
         except FamFamApiError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="item_delete_failed",
-                translation_placeholders={"code": err.code},
-            ) from err
+            raise api_error("item_delete_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()

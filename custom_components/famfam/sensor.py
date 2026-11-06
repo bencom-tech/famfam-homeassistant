@@ -250,7 +250,7 @@ class FamFamListRemainingSensor(FamFamEntity, SensorEntity):
         self._attr_unique_id = (
             f"{coordinator.bootstrap.family_id}_list_remaining_{list_id}"
         )
-        self._attr_name = f"{famfam_list.name} remaining"
+        self._attr_translation_placeholders = {"list_name": famfam_list.name}
 
     @property
     def _list(self) -> FamFamList | None:

@@ -19,6 +19,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .coordinator import (
+    FamFamCheckinDay,
     FamFamConfigEntry,
     FamFamCoordinator,
     FamFamMember,
@@ -88,7 +89,8 @@ class FamFamShoppingTripActiveBinarySensor(FamFamEntity, BinarySensorEntity):
         if trip is None:
             return None
         expires = dt_util.parse_datetime(trip.expires_at)
-        if expires is None or expires <= dt_util.utcnow():
+        # as_utc so an offset-less timestamp can't break the comparison.
+        if expires is None or dt_util.as_utc(expires) <= dt_util.utcnow():
             return None
         return trip
 
@@ -132,9 +134,11 @@ class FamFamHomeForDinnerBinarySensor(FamFamEntity, BinarySensorEntity):
             f"{coordinator.bootstrap.family_id}_home_for_dinner_{member.id}"
         )
 
+    def _today(self) -> FamFamCheckinDay | None:
+        return self.coordinator.data.checkins.get(self.coordinator.family_today())
+
     def _response(self) -> str | None:
-        day = self.coordinator.data.checkins.get(self.coordinator.family_today())
-        if day is None:
+        if (day := self._today()) is None:
             return None
         return day.responses.get(self._member.id)
 
@@ -146,9 +150,10 @@ class FamFamHomeForDinnerBinarySensor(FamFamEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Whether the answer was manual or from their usual week."""
-        if self._response() is None:
+        # One lookup, so a midnight rollover between calls can't KeyError.
+        day = self._today()
+        if day is None or day.responses.get(self._member.id) is None:
             return {"source": None}
-        day = self.coordinator.data.checkins[self.coordinator.family_today()]
         # An absent uid means a manual answer (the server's fail-open rule).
         return {"source": day.sources.get(self._member.id, "manual")}
 

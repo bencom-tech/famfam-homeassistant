@@ -50,6 +50,15 @@ class StateResult:
     etag: str | None
 
 
+@dataclass(slots=True)
+class _Response:
+    """A successful (< 400) response, already read and released."""
+
+    status: int
+    etag: str | None
+    payload: dict[str, Any] | None
+
+
 class FamFamApiClient:
     """Minimal async client for the FamFam Home Assistant API."""
 
@@ -72,35 +81,62 @@ class FamFamApiClient:
         json: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
         extra_headers: dict[str, str] | None = None,
-    ) -> aiohttp.ClientResponse:
+        read_body: bool = True,
+    ) -> _Response:
+        """Make a request and release the connection before returning.
+
+        The body is consumed inside the context manager so the connection goes
+        straight back to Home Assistant's shared session pool. Writes whose
+        body nobody reads would otherwise hold it until garbage collection and
+        cost a fresh TLS handshake on the next poll.
+        """
         # The token must never appear in logs at any level.
         headers = {"Authorization": f"Bearer {self._token}"}
         if extra_headers:
             headers.update(extra_headers)
         _LOGGER.debug("%s %s%s", method, API_PREFIX, path)
         try:
-            response = await self._session.request(
+            async with self._session.request(
                 method,
                 f"{self._base_url}{API_PREFIX}{path}",
                 json=json,
                 params=params,
                 headers=headers,
                 timeout=REQUEST_TIMEOUT,
-            )
+            ) as response:
+                status = response.status
+                if status < 400:
+                    payload = None
+                    if read_body and status != 304:
+                        payload = await self._parse_json(response)
+                    return _Response(status, response.headers.get("ETag"), payload)
+                code, message, details = await self._parse_error(response)
         except (aiohttp.ClientError, TimeoutError) as err:
             raise FamFamConnectionError(
                 "cannot_connect", f"Error connecting to FamFam: {err}"
             ) from err
-        if response.status < 400:
-            return response
-        code, message, details = await self._parse_error(response)
-        if response.status == 401:
+        if status == 401:
             raise FamFamAuthError(code, message, details)
-        if response.status == 429:
+        if status == 429:
             raise FamFamApiError("rate_limited", message, details)
-        if response.status >= 500:
+        if status >= 500:
             raise FamFamConnectionError(code, message, details)
         raise FamFamApiError(code, message, details)
+
+    @staticmethod
+    async def _parse_json(response: aiohttp.ClientResponse) -> dict[str, Any]:
+        """The JSON object body, or an invalid_response error."""
+        try:
+            payload = await response.json()
+        except (aiohttp.ContentTypeError, ValueError) as err:
+            raise FamFamApiError(
+                "invalid_response", f"FamFam returned a non-JSON response: {err}"
+            ) from err
+        if not isinstance(payload, dict):
+            raise FamFamApiError(
+                "invalid_response", "FamFam returned an unexpected response body"
+            )
+        return payload
 
     @staticmethod
     async def _parse_error(
@@ -120,7 +156,8 @@ class FamFamApiClient:
     async def async_bootstrap(self) -> dict[str, Any]:
         """Fetch the family shape (GET /bootstrap)."""
         response = await self._request("GET", "/bootstrap")
-        return await response.json()
+        assert response.payload is not None
+        return response.payload
 
     async def async_get_state(self, etag: str | None) -> StateResult:
         """Conditionally fetch the full state (GET /state).
@@ -132,9 +169,7 @@ class FamFamApiClient:
         if response.status == 304:
             return StateResult(changed=False, payload=None, etag=etag)
         return StateResult(
-            changed=True,
-            payload=await response.json(),
-            etag=response.headers.get("ETag"),
+            changed=True, payload=response.payload, etag=response.etag
         )
 
     async def async_create_item(
@@ -144,7 +179,9 @@ class FamFamApiClient:
         body: dict[str, Any] = {"text": text}
         if category is not None:
             body["category"] = category
-        await self._request("POST", f"/lists/{list_id}/items", json=body)
+        await self._request(
+            "POST", f"/lists/{list_id}/items", json=body, read_body=False
+        )
 
     async def async_update_item(
         self, list_id: str, item_id: str, changes: dict[str, Any]
@@ -156,16 +193,21 @@ class FamFamApiClient:
         addedBy, checkedBy and createdAt (spec §5.1 data-loss guard).
         """
         await self._request(
-            "PATCH", f"/lists/{list_id}/items/{item_id}", json=changes
+            "PATCH",
+            f"/lists/{list_id}/items/{item_id}",
+            json=changes,
+            read_body=False,
         )
 
     async def async_delete_item(self, list_id: str, item_id: str) -> None:
         """Delete an item from a list."""
-        await self._request("DELETE", f"/lists/{list_id}/items/{item_id}")
+        await self._request(
+            "DELETE", f"/lists/{list_id}/items/{item_id}", read_body=False
+        )
 
     async def async_create_event(self, body: dict[str, Any]) -> None:
         """Create a calendar event."""
-        await self._request("POST", "/events", json=body)
+        await self._request("POST", "/events", json=body, read_body=False)
 
     async def async_update_event(
         self, event_id: str, changes: dict[str, Any]
@@ -176,11 +218,13 @@ class FamFamApiClient:
         The caller diffs first and must send the master id — the server
         rejects synthetic "{masterId}::{date}" occurrence ids.
         """
-        await self._request("PATCH", f"/events/{event_id}", json=changes)
+        await self._request(
+            "PATCH", f"/events/{event_id}", json=changes, read_body=False
+        )
 
     async def async_delete_event(self, event_id: str) -> None:
         """Delete an event (the whole series for repeating events)."""
-        await self._request("DELETE", f"/events/{event_id}")
+        await self._request("DELETE", f"/events/{event_id}", read_body=False)
 
     async def async_start_trip(self, request_id: str) -> None:
         """Announce a shopping trip (POST /trips).
@@ -189,7 +233,9 @@ class FamFamApiClient:
         applies its default window; requestId dedupes transport retries.
         Plus-gated: a free family gets a 403 with code "plus_required".
         """
-        await self._request("POST", "/trips", json={"requestId": request_id})
+        await self._request(
+            "POST", "/trips", json={"requestId": request_id}, read_body=False
+        )
 
     async def async_end_trip(self) -> None:
         """End the current shopping trip (DELETE /trips/current).
@@ -197,7 +243,7 @@ class FamFamApiClient:
         Idempotent — ending when no trip is running is a success. Any member
         may end a trip, not just the one who started it.
         """
-        await self._request("DELETE", "/trips/current")
+        await self._request("DELETE", "/trips/current", read_body=False)
 
     async def async_set_checkin(
         self, date: str, member_id: str, status: str
@@ -209,7 +255,10 @@ class FamFamApiClient:
         organiser-only — the token's member gets a 403 "organiser_only".
         """
         await self._request(
-            "PUT", f"/checkins/{date}/{member_id}", json={"status": status}
+            "PUT",
+            f"/checkins/{date}/{member_id}",
+            json={"status": status},
+            read_body=False,
         )
 
     async def async_set_meal(
@@ -229,7 +278,7 @@ class FamFamApiClient:
             if recipe_id is not None
             else {"freeText": free_text}
         )
-        await self._request("PUT", f"/meals/{date}", json=body)
+        await self._request("PUT", f"/meals/{date}", json=body, read_body=False)
 
     async def async_add_meal_ingredients_to_list(
         self, date_from: str, date_to: str, list_id: str
@@ -244,6 +293,7 @@ class FamFamApiClient:
             "POST",
             "/meals/ingredients-to-list",
             json={"dateFrom": date_from, "dateTo": date_to, "listId": list_id},
+            read_body=False,
         )
 
     async def async_search_recipes(
@@ -272,5 +322,5 @@ class FamFamApiClient:
             if value is not None:
                 params[key] = value
         response = await self._request("GET", "/recipes/search", params=params)
-        payload = await response.json()
-        return payload.get("recipes", [])
+        recipes = (response.payload or {}).get("recipes", [])
+        return recipes if isinstance(recipes, list) else []

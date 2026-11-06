@@ -9,8 +9,11 @@ from typing import TYPE_CHECKING, Any
 import voluptuous as vol
 
 from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
+    OptionsFlow,
     OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_API_TOKEN, CONF_URL
@@ -67,14 +70,20 @@ class FamFamConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    bootstrap: dict[str, Any]
+    family_id: str
+    family_name: str
 
     async def _async_validate(self, token: str, base_url: str) -> dict[str, str]:
         """Validate a token via GET /bootstrap; set the unique id on success."""
         errors: dict[str, str] = {}
         client = FamFamApiClient(async_get_clientsession(self.hass), token, base_url)
         try:
-            self.bootstrap = await client.async_bootstrap()
+            bootstrap = await client.async_bootstrap()
+            # Inside the try so a malformed payload lands on the form's
+            # "unknown" error instead of an unhandled KeyError.
+            family = bootstrap["family"]
+            self.family_id = str(family["id"])
+            self.family_name = str(family.get("name") or "")
         except FamFamAuthError:
             errors["base"] = "invalid_auth"
         except FamFamConnectionError:
@@ -83,7 +92,7 @@ class FamFamConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected error validating the FamFam token")
             errors["base"] = "unknown"
         else:
-            await self.async_set_unique_id(self.bootstrap["family"]["id"])
+            await self.async_set_unique_id(self.family_id)
         return errors
 
     async def async_step_user(
@@ -100,7 +109,7 @@ class FamFamConfigFlow(ConfigFlow, domain=DOMAIN):
             ):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=self.bootstrap["family"]["name"],
+                    title=self.family_name or "FamFam",
                     data={
                         CONF_API_TOKEN: user_input[CONF_API_TOKEN],
                         CONF_URL: base_url,
@@ -174,7 +183,7 @@ class FamFamConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry) -> FamFamOptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Get the options flow for this handler."""
         return FamFamOptionsFlow()
 
@@ -187,13 +196,13 @@ class FamFamOptionsFlow(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Manage the options."""
         entry: FamFamConfigEntry = self.config_entry
-        try:
-            bootstrap = entry.runtime_data.bootstrap
-        except AttributeError:
-            # Entry failed to set up — there is nothing to offer yet.
+        if entry.state is not ConfigEntryState.LOADED:
+            # runtime_data is absent or stale — nothing to offer yet.
             return self.async_abort(reason="not_loaded")
+        bootstrap = entry.runtime_data.bootstrap
 
         all_list_ids = [lst.id for lst in bootstrap.lists]
+        member_ids = {member.id for member in bootstrap.members}
 
         if user_input is not None:
             user_input[CONF_POLL_INTERVAL] = int(user_input[CONF_POLL_INTERVAL])
@@ -204,6 +213,16 @@ class FamFamOptionsFlow(OptionsFlowWithReload):
             return self.async_create_entry(data=user_input)
 
         options = entry.options
+        # Stale selections (a member left, a list was deleted) would fail the
+        # selectors' validation on save, so drop them from the prefill.
+        default_member = options.get(CONF_DEFAULT_MEMBER)
+        if default_member not in member_ids:
+            default_member = None
+        selected_lists = [
+            list_id
+            for list_id in options.get(CONF_LISTS, all_list_ids)
+            if list_id in all_list_ids
+        ]
         schema = vol.Schema(
             {
                 vol.Required(
@@ -220,9 +239,7 @@ class FamFamOptionsFlow(OptionsFlowWithReload):
                 ),
                 vol.Optional(
                     CONF_DEFAULT_MEMBER,
-                    description={
-                        "suggested_value": options.get(CONF_DEFAULT_MEMBER)
-                    },
+                    description={"suggested_value": default_member},
                 ): SelectSelector(
                     SelectSelectorConfig(
                         options=[
@@ -238,7 +255,7 @@ class FamFamOptionsFlow(OptionsFlowWithReload):
                 ): BooleanSelector(),
                 vol.Required(
                     CONF_LISTS,
-                    default=options.get(CONF_LISTS, all_list_ids),
+                    default=selected_lists,
                 ): SelectSelector(
                     SelectSelectorConfig(
                         options=[

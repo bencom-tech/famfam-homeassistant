@@ -34,7 +34,8 @@ rules:
     status: done
     comment: README.
   docs-removal-instructions:
-    status: todo
+    status: done
+    comment: README.
   entity-event-setup:
     status: exempt
     comment: The integration registers no events.
@@ -87,6 +88,9 @@ rules:
     status: todo
     comment: Tests deferred to a dedicated pass after session 9.
   # Gold (not the current target; recorded where already satisfied)
+  diagnostics:
+    status: done
+    comment: Token, names and free text redacted.
   reconfiguration-flow:
     status: done
     comment: >-
