@@ -43,6 +43,7 @@
     },
     "abort": {
       "already_configured": "This family is already configured.",
+      "already_in_progress": "Configuration flow is already in progress",
       "reauth_successful": "Re-authentication was successful",
       "reconfigure_successful": "The FamFam token was updated.",
       "unique_id_mismatch": "This token belongs to a different family."
@@ -60,7 +61,7 @@
         },
         "data_description": {
           "poll_interval": "How often to check famfam.life for changes, in seconds.",
-          "default_member": "Who button presses and voice-originated actions act as. Leave empty to act as the token's member.",
+          "default_member": "Who the set dinner check-in action acts on when no member is passed. Leave empty to require a member on every call. Trip announcements always act as the token's member.",
           "create_member_calendars": "Adds a calendar entity for each family member.",
           "lists": "Which FamFam lists appear as to-do lists. While every list is selected, new lists appear automatically."
         }
@@ -106,10 +107,18 @@
         "name": "Dinner headcount"
       },
       "list_remaining": {
-        "name": "Items remaining"
+        "name": "{list_name} remaining"
       },
       "next_event": {
         "name": "Next event"
+      }
+    },
+    "todo": {
+      "list": {
+        "name": "{list_name}"
+      },
+      "grocery_list": {
+        "name": "{list_name}"
       }
     }
   },
@@ -141,7 +150,7 @@
         },
         "start": {
           "name": "Start",
-          "description": "When the event starts, in the family's timezone."
+          "description": "When the event starts, in the family's timezone. A date on its own makes an all-day event."
         },
         "end": {
           "name": "End",
@@ -325,6 +334,9 @@
     "setup_connect_failed": {
       "message": "Could not reach FamFam to set up the integration."
     },
+    "setup_rejected": {
+      "message": "FamFam rejected the setup request ({code}). Check the token and base URL."
+    },
     "auth_failed": {
       "message": "The FamFam token was rejected."
     },
@@ -367,8 +379,8 @@
     "event_recurring_edit_not_supported": {
       "message": "Repeating events can't be edited from Home Assistant — edit them in the FamFam app."
     },
-    "event_occurrence_not_supported": {
-      "message": "Only the whole series can be deleted from Home Assistant — manage single occurrences in the FamFam app."
+    "event_series_delete_hint": {
+      "message": "Single occurrences can't be deleted from Home Assistant. To delete the whole series, open its first occurrence and choose \"Delete this and future events\" — or manage it in the FamFam app."
     },
     "event_multi_day_not_supported": {
       "message": "FamFam events can't span more than one day."

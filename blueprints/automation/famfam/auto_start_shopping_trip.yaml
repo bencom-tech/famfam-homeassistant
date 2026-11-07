@@ -27,7 +27,7 @@ blueprint:
             domain: zone
     list_sensor:
       name: Items remaining sensor
-      description: The FamFam "Items remaining" sensor for the shopping list.
+      description: The FamFam "… remaining" sensor for the shopping list.
       selector:
         entity:
           filter:
@@ -71,6 +71,9 @@ conditions:
     state: "off"
 
 actions:
+  # The list sensor pins down the family, so this works with several.
   - action: famfam.start_shopping_trip
+    data:
+      config_entry_id: "{{ config_entry_id(list_sensor) }}"
 
 mode: single

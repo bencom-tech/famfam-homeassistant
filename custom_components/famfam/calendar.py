@@ -38,12 +38,13 @@ from .coordinator import (
     FamFamMember,
 )
 from .entity import FamFamEntity
+from .util import api_error
 
 PARALLEL_UPDATES = 0
 
 # FamFam's repeat enum rendered as informational RRULEs. Occurrences arrive
 # pre-expanded, so HA never re-expands these — they exist so the frontend
-# recognises a series and shows the series chooser on delete.
+# recognises a series and asks for a scope on edit and delete.
 _REPEAT_TO_RRULE = {
     "daily": "FREQ=DAILY",
     "weekly": "FREQ=WEEKLY",
@@ -51,11 +52,8 @@ _REPEAT_TO_RRULE = {
     "monthly": "FREQ=MONTHLY",
 }
 
-# Friendlier messages for the two write rejections users will actually hit.
-_ERROR_CODE_KEYS = {
-    "event_quota": "event_quota_exceeded",
-    "not_event_creator": "event_not_creator",
-}
+# The frontend's "this and future events" scope, as sent over the websocket.
+_RANGE_THIS_AND_FUTURE = "THISANDFUTURE"
 
 
 async def async_setup_entry(
@@ -192,17 +190,6 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         )
 
     @staticmethod
-    def _write_error(default_key: str, err: FamFamApiError) -> HomeAssistantError:
-        key = _ERROR_CODE_KEYS.get(err.code, default_key)
-        return HomeAssistantError(
-            translation_domain=DOMAIN,
-            translation_key=key,
-            translation_placeholders=(
-                {"code": err.code} if key == default_key else None
-            ),
-        )
-
-    @staticmethod
     def _raise(key: str) -> NoReturn:
         raise HomeAssistantError(translation_domain=DOMAIN, translation_key=key)
 
@@ -238,7 +225,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         try:
             await self.coordinator.client.async_create_event(body)
         except FamFamApiError as err:
-            raise self._write_error("event_create_failed", err) from err
+            raise api_error("event_create_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
 
@@ -251,7 +238,8 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
     ) -> None:
         """PATCH only the fields that changed (data-loss guard)."""
         if recurrence_id or recurrence_range:
-            self._raise("event_occurrence_not_supported")
+            # The frontend always scopes edits of a series to an occurrence.
+            self._raise("event_recurring_edit_not_supported")
         current = self._find_event(uid)
         if current.repeat != "never":
             # The edit form prefills from the clicked occurrence; diffing it
@@ -265,7 +253,7 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         try:
             await self.coordinator.client.async_update_event(uid, changes)
         except FamFamApiError as err:
-            raise self._write_error("event_update_failed", err) from err
+            raise api_error("event_update_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
 
@@ -354,19 +342,39 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
                 changes["location"] = new_location
         return changes
 
+    def _first_occurrence_date(self, uid: str) -> str | None:
+        """The series' first occurrence date, if the server still serves it.
+
+        The first occurrence is the one whose id is the master id itself;
+        later ones carry synthetic "{masterId}::{date}" ids.
+        """
+        return next(
+            (e.date for e in self.coordinator.data.events if e.id == uid), None
+        )
+
     async def async_delete_event(
         self,
         uid: str,
         recurrence_id: str | None = None,
         recurrence_range: str | None = None,
     ) -> None:
-        """Delete an event; for a series, only "all events" is supported."""
-        if recurrence_id or recurrence_range:
-            self._raise("event_occurrence_not_supported")
+        """Delete an event, or a whole series.
+
+        HA's dialog offers only "this event" and "this and future events",
+        always naming the clicked occurrence, while FamFam can only delete a
+        whole series. The one combination that means the same thing — "this
+        and future" from the first occurrence — is accepted; anything else
+        gets a hint rather than a silent series wipe.
+        """
+        if (recurrence_id or recurrence_range) and (
+            recurrence_range != _RANGE_THIS_AND_FUTURE
+            or recurrence_id != self._first_occurrence_date(uid)
+        ):
+            self._raise("event_series_delete_hint")
         try:
             await self.coordinator.client.async_delete_event(uid)
         except FamFamApiError as err:
-            raise self._write_error("event_delete_failed", err) from err
+            raise api_error("event_delete_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
 

@@ -63,3 +63,17 @@ ATTR_DAYS: Final = "days"
 
 # Server-side cap on the ingredients-to-list date range (haMutationsData.ts).
 INGREDIENTS_RANGE_MAX_DAYS: Final = 31
+
+# API error codes that get a dedicated message instead of the generic
+# "({code})" one. Shared by the services and every mutating platform.
+API_ERROR_KEYS: Final[dict[str, str]] = {
+    "plus_required": "trip_plus_required",
+    "trip_active": "trip_already_active",
+    "organiser_only": "checkin_organiser_only",
+    "event_quota": "event_quota_exceeded",
+    "not_event_creator": "event_not_creator",
+    "item_limit": "item_limit_reached",
+    "no_list_access": "no_list_access",
+    "unknown_member": "member_not_found_server",
+    "rate_limited": "rate_limited",
+}

@@ -11,7 +11,20 @@ from homeassistant.core import HomeAssistant
 
 from .coordinator import FamFamConfigEntry
 
-TO_REDACT = {CONF_API_TOKEN}
+# The token plus names and free text. Ids stay so membership and list
+# problems remain debuggable.
+TO_REDACT = {
+    CONF_API_TOKEN,
+    "family_name",
+    "initials",
+    "location",
+    "meal",
+    "name",
+    "notes",
+    "store_name",
+    "text",
+    "title",
+}
 
 
 async def async_get_config_entry_diagnostics(
@@ -19,9 +32,9 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator = entry.runtime_data
-    return {
+    data: dict[str, Any] = {
         "entry": {
-            "data": async_redact_data(dict(entry.data), TO_REDACT),
+            "data": dict(entry.data),
             "options": dict(entry.options),
         },
         "bootstrap": asdict(coordinator.bootstrap),
@@ -35,3 +48,4 @@ async def async_get_config_entry_diagnostics(
         "checkins": [asdict(day) for day in coordinator.data.checkins.values()],
         "trip": asdict(trip) if (trip := coordinator.data.trip) else None,
     }
+    return async_redact_data(data, TO_REDACT)

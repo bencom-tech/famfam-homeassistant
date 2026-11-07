@@ -8,25 +8,17 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util.ulid import ulid_now
 
 from .api import FamFamApiError
-from .const import DOMAIN
 from .coordinator import FamFamConfigEntry, FamFamCoordinator
 from .entity import FamFamEntity
+from .util import api_error
 
 # A single entity against a cloud API that tolerates concurrent calls — the
 # same setting as the other mutation platforms.
 PARALLEL_UPDATES = 0
-
-# Friendlier messages for the rejections users will actually hit: trips are
-# Plus-gated server-side, and only one can run at a time.
-_ERROR_CODE_KEYS = {
-    "plus_required": "trip_plus_required",
-    "trip_active": "trip_already_active",
-}
 
 
 async def async_setup_entry(
@@ -61,14 +53,8 @@ class FamFamHeadingToTheShopsButton(FamFamEntity, ButtonEntity):
         try:
             await self.coordinator.client.async_start_trip(ulid_now())
         except FamFamApiError as err:
-            key = _ERROR_CODE_KEYS.get(err.code, "trip_start_failed")
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key=key,
-                translation_placeholders=(
-                    {"code": err.code} if key == "trip_start_failed" else None
-                ),
-            ) from err
+            # Plus-gating and "already running" get dedicated messages.
+            raise api_error("trip_start_failed", err) from err
         finally:
             # Success shows the trip sensor within this refresh; a 409 against
             # a stale local view heals the same way.

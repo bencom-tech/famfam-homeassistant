@@ -11,6 +11,7 @@ stale local view heals even on failure.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, tzinfo
+import re
 from typing import Any, NoReturn
 
 import voluptuous as vol
@@ -23,7 +24,7 @@ from homeassistant.core import (
     SupportsResponse,
     callback,
 )
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.util.ulid import ulid_now
 
@@ -68,19 +69,22 @@ from .const import (
     SERVICE_START_SHOPPING_TRIP,
 )
 from .coordinator import FamFamCoordinator
+from .util import api_error
 
-# Friendlier messages for the rejections callers will actually hit. Everything
-# else falls through to the calling service's generic key with the code.
-_ERROR_CODE_KEYS = {
-    "plus_required": "trip_plus_required",
-    "trip_active": "trip_already_active",
-    "organiser_only": "checkin_organiser_only",
-    "event_quota": "event_quota_exceeded",
-    "item_limit": "item_limit_reached",
-    "no_list_access": "no_list_access",
-    "unknown_member": "member_not_found_server",
-    "rate_limited": "rate_limited",
-}
+_DATE_ONLY = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _date_or_datetime(value: Any) -> date | datetime:
+    """A date for date-only input, otherwise a datetime.
+
+    cv.datetime happily parses "2026-09-01" as midnight, so trying it first
+    would turn a date-only start into a timed event at 00:00.
+    """
+    if isinstance(value, date):  # datetime is a date subclass too
+        return value
+    if isinstance(value, str) and _DATE_ONLY.fullmatch(value.strip()):
+        return cv.date(value.strip())
+    return cv.datetime(value)
 
 # The checkin select offers slug values (hassfest requires slug option keys),
 # but spec readers will type the wire's hyphenated forms — accept both.
@@ -93,8 +97,8 @@ ADD_EVENT_SCHEMA = vol.Schema(
         **_ENTRY_FIELD,
         vol.Required(ATTR_SUMMARY): vol.All(cv.string, vol.Length(min=1)),
         vol.Optional(ATTR_DESCRIPTION): cv.string,
-        vol.Required(ATTR_START): vol.Any(cv.datetime, cv.date),
-        vol.Optional(ATTR_END): vol.Any(cv.datetime, cv.date),
+        vol.Required(ATTR_START): _date_or_datetime,
+        vol.Optional(ATTR_END): _date_or_datetime,
         vol.Optional(ATTR_ALL_DAY, default=False): cv.boolean,
         vol.Optional(ATTR_MEMBERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(ATTR_CALENDAR_ENTITY_ID): cv.entity_id,
@@ -180,14 +184,7 @@ def _validation_error(
 
 def _raise_write_error(default_key: str, err: FamFamApiError) -> NoReturn:
     """Surface an API rejection as a translated HomeAssistantError."""
-    key = _ERROR_CODE_KEYS.get(err.code, default_key)
-    raise HomeAssistantError(
-        translation_domain=DOMAIN,
-        translation_key=key,
-        translation_placeholders=(
-            {"code": err.code} if key == default_key else None
-        ),
-    ) from err
+    raise api_error(default_key, err) from err
 
 
 def _famfam_registry_entry(

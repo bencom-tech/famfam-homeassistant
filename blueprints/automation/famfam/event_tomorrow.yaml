@@ -1,24 +1,24 @@
 blueprint:
-  name: "FamFam: event tomorrow"
+  name: "FamFam: events tomorrow"
   description: >-
-    At a chosen time each evening, check whether the next family event is
-    tomorrow — and if so, send a notification, set a light colour, or
-    both.
+    At a chosen time each evening, look up tomorrow's events on a FamFam
+    calendar — and if there are any, send a notification, set a light
+    colour, or both.
   domain: automation
   homeassistant:
     min_version: "2025.8.0"
   source_url: https://github.com/bencom-tech/famfam-homeassistant/blob/main/blueprints/automation/famfam/event_tomorrow.yaml
   input:
-    next_event_sensor:
-      name: Next event sensor
+    calendar_entity:
+      name: Calendar
       description: >-
-        A FamFam "Next event" sensor — the family's, or a member's for
-        that member's events only.
+        A FamFam calendar — the family calendar, or a member's for that
+        member's events only.
       selector:
         entity:
           filter:
             integration: famfam
-            domain: sensor
+            domain: calendar
     check_time:
       name: Check time
       default: "19:00:00"
@@ -52,19 +52,27 @@ triggers:
     at: !input check_time
 
 variables:
-  next_event_sensor: !input next_event_sensor
+  calendar_entity: !input calendar_entity
   notify_service: !input notify_service
   lights: !input lights
-  event_start: "{{ state_attr(next_event_sensor, 'start') or '' }}"
-
-conditions:
-  # The start attribute is a date for all-day events and an ISO datetime
-  # for timed ones — the first ten characters are the date either way.
-  - condition: template
-    value_template: >-
-      {{ event_start[:10] == (now() + timedelta(days=1)).date().isoformat() }}
 
 actions:
+  # Read tomorrow straight from the calendar. The "Next event" sensor only
+  # reports the single soonest event, so anything still on later tonight
+  # would hide tomorrow's.
+  - action: calendar.get_events
+    target:
+      entity_id: !input calendar_entity
+    data:
+      start_date_time: >-
+        {{ (today_at() + timedelta(days=1)).isoformat() }}
+      duration:
+        hours: 24
+    response_variable: agenda
+  - variables:
+      events: "{{ agenda[calendar_entity].events }}"
+  - condition: template
+    value_template: "{{ events | count > 0 }}"
   - if:
       - condition: template
         value_template: "{{ notify_service != '' }}"
@@ -72,11 +80,11 @@ actions:
       - action: "{{ notify_service }}"
         data:
           title: "On tomorrow"
+          # start is a date for all-day events and an ISO datetime for timed
+          # ones; the time, when there is one, is characters 11 to 16.
           message: >-
-            Tomorrow: {{ states(next_event_sensor) }}
-            {%- if event_start | length > 10 %}
-            at {{ event_start[11:16] }}
-            {%- endif %}.
+            {% for event in events %}{{ event.summary }}{% if event.start | length > 10 %}
+            at {{ event.start[11:16] }}{% endif %}{{ ', ' if not loop.last else '.' }}{% endfor %}
   - if:
       - condition: template
         value_template: "{{ lights | count > 0 }}"

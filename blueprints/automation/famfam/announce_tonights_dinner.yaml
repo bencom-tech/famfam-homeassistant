@@ -61,6 +61,7 @@ triggers:
 variables:
   dinner_sensor: !input dinner_sensor
   headcount_sensor: !input headcount_sensor
+  tts_entity: !input tts_entity
   media_players: !input media_players
   notify_service: !input notify_service
   dinner_message: >-
@@ -75,7 +76,8 @@ conditions:
 actions:
   - if:
       - condition: template
-        value_template: "{{ media_players | count > 0 }}"
+        value_template: >-
+          {{ media_players | count > 0 and tts_entity | length > 0 }}
     then:
       - action: tts.speak
         target:
