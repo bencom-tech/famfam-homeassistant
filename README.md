@@ -234,3 +234,17 @@ with the URL pre-filled. Every FamFam entity is a configurable input
 
 Imported blueprints stay under **Settings → Automations & scenes →
 Blueprints** until you delete them there.
+
+## Releasing
+
+Versions are GitHub releases, which is what HACS shows as the installed and
+latest version, with the release notes in the update dialog.
+
+1. Bump `version` in `custom_components/famfam/manifest.json`.
+2. Add a `## [x.y.z] - YYYY-MM-DD` section to [CHANGELOG.md](CHANGELOG.md),
+   plus its compare link at the bottom.
+3. Merge to `main`, then tag and push:
+   `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+The Release workflow checks that the tag matches the manifest version and
+publishes that version's CHANGELOG section as the release notes.
