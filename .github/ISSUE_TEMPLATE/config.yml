@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or help setting up
+    url: https://github.com/bencom-tech/famfam-homeassistant/discussions
+    about: Ask how to do something, or share an automation.
+  - name: Report a security vulnerability
+    url: https://github.com/bencom-tech/famfam-homeassistant/security/advisories/new
+    about: Report security problems privately, not in a public issue.
