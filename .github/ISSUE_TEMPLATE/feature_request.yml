@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest a new entity, action, blueprint or improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the automation or situation, not just the feature.
+      placeholder: When the shopping list gets long I'd like to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: The entity, action, option or blueprint you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've tried already?
+    validations:
+      required: false

@@ -1,0 +1,79 @@
+name: Bug report
+description: Something in the FamFam integration isn't working.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. **Never paste your FamFam token** into an issue.
+        For security problems, use the Security tab's private report instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Call the famfam.... action with ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: Integration version
+      description: Shown in HACS, or in custom_components/famfam/manifest.json.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2026.11.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: Installation type
+      options:
+        - Home Assistant OS
+        - Container
+        - Supervised
+        - Core
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Settings → Devices & services → FamFam → ⋮ → **Download diagnostics**, then
+        drag the file here. The token, names and free text are redacted automatically.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant lines from Settings → System → Logs. To get more detail, add
+        `custom_components.famfam: debug` under `logger:` in configuration.yaml.
+      render: text
+    validations:
+      required: false
