@@ -139,6 +139,49 @@ add_list_item:
       selector:
         text:
 
+skip_chore:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    list_entity_id:
+      required: true
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: todo
+    chore:
+      required: true
+      example: "Take out the bins"
+      selector:
+        text:
+
+set_away:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: famfam
+    member:
+      required: false
+      example: "Alex"
+      selector:
+        text:
+    away:
+      required: true
+      default: true
+      selector:
+        boolean:
+    back_on:
+      required: false
+      example: "2026-09-08"
+      selector:
+        date:
+
 start_shopping_trip:
   fields:
     config_entry_id:

@@ -81,6 +81,9 @@
       },
       "dinner_checkins_complete": {
         "name": "Dinner check-ins complete"
+      },
+      "away": {
+        "name": "Away"
       }
     },
     "button": {
@@ -111,6 +114,14 @@
       },
       "next_event": {
         "name": "Next event"
+      },
+      "chores_due": {
+        "name": "{list_name} due",
+        "unit_of_measurement": "chores"
+      },
+      "member_chores_due": {
+        "name": "Chores due",
+        "unit_of_measurement": "chores"
       }
     },
     "todo": {
@@ -118,6 +129,9 @@
         "name": "{list_name}"
       },
       "grocery_list": {
+        "name": "{list_name}"
+      },
+      "chore_list": {
         "name": "{list_name}"
       }
     }
@@ -232,7 +246,7 @@
         },
         "list_entity_id": {
           "name": "List",
-          "description": "The FamFam list to add ingredients to. Defaults to the grocery list."
+          "description": "The FamFam list to add ingredients to. Defaults to the grocery list. A chore list can't be used."
         }
       }
     },
@@ -323,6 +337,46 @@
         "days": {
           "name": "Days",
           "description": "How many days to include, starting today. FamFam provides up to 14."
+        }
+      }
+    },
+    "skip_chore": {
+      "name": "Skip chore",
+      "description": "Skips a chore this time. FamFam records it as skipped and moves a repeating chore on to its next date and person.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "list_entity_id": {
+          "name": "Chore list",
+          "description": "The FamFam chore list the chore is on."
+        },
+        "chore": {
+          "name": "Chore",
+          "description": "The chore's name, or its item uid from the to-do list."
+        }
+      }
+    },
+    "set_away": {
+      "name": "Set away",
+      "description": "Marks a family member away or back. While someone is away, FamFam passes their chores to the next person and holds their chore reminders.",
+      "fields": {
+        "config_entry_id": {
+          "name": "FamFam family",
+          "description": "Which family to act on. Only needed when more than one FamFam family is set up."
+        },
+        "member": {
+          "name": "Member",
+          "description": "Member name or id. Leave empty to use the default member from the integration options."
+        },
+        "away": {
+          "name": "Away",
+          "description": "On to mark the member away, off to mark them back."
+        },
+        "back_on": {
+          "name": "Back on",
+          "description": "The date they are back. Away ends by itself that morning. Leave empty for an open-ended away."
         }
       }
     }
@@ -465,6 +519,36 @@
     },
     "date_range_too_long": {
       "message": "The date range must span {max_days} days or fewer."
+    },
+    "event_imported_date_locked": {
+      "message": "This event was imported from a calendar on someone's phone, so its date can only be changed in that calendar."
+    },
+    "not_a_chore": {
+      "message": "Only a chore can be skipped. Pick an item on a FamFam chore list."
+    },
+    "chore_not_found": {
+      "message": "No chore still to do on that list matches \"{chore}\"."
+    },
+    "chore_ambiguous": {
+      "message": "More than one chore on that list is called \"{chore}\". Use its item uid instead."
+    },
+    "chore_skip_failed": {
+      "message": "FamFam couldn't skip the chore ({code})."
+    },
+    "away_set_failed": {
+      "message": "FamFam couldn't update the away status ({code})."
+    },
+    "away_organiser_only": {
+      "message": "Only an organiser's token can mark another family member away."
+    },
+    "back_on_not_future": {
+      "message": "The back-on date must be after today."
+    },
+    "list_is_chores": {
+      "message": "Meal ingredients can't be added to a chore list. Pick another list."
+    },
+    "server_feature_unavailable": {
+      "message": "The FamFam server doesn't support this action yet. Reload the integration once FamFam has been updated."
     }
   }
 }

@@ -24,15 +24,18 @@ from homeassistant.core import (
     SupportsResponse,
     callback,
 )
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.util.ulid import ulid_now
 
 from .api import FamFamApiError
 from .const import (
     ATTR_ALL_DAY,
+    ATTR_AWAY,
+    ATTR_BACK_ON,
     ATTR_CALENDAR_ENTITY_ID,
     ATTR_CATEGORY,
+    ATTR_CHORE,
     ATTR_CONFIG_ENTRY_ID,
     ATTR_COURSE,
     ATTR_CUISINE,
@@ -55,6 +58,8 @@ from .const import (
     ATTR_START,
     ATTR_STATUS,
     ATTR_SUMMARY,
+    CAPABILITY_AWAY,
+    CAPABILITY_CHORES,
     CONF_DEFAULT_MEMBER,
     DOMAIN,
     INGREDIENTS_RANGE_MAX_DAYS,
@@ -64,8 +69,10 @@ from .const import (
     SERVICE_END_SHOPPING_TRIP,
     SERVICE_GET_MEAL_PLAN,
     SERVICE_SEARCH_RECIPES,
+    SERVICE_SET_AWAY,
     SERVICE_SET_DINNER_CHECKIN,
     SERVICE_SET_MEAL,
+    SERVICE_SKIP_CHORE,
     SERVICE_START_SHOPPING_TRIP,
 )
 from .coordinator import FamFamCoordinator
@@ -147,6 +154,23 @@ ADD_LIST_ITEM_SCHEMA = vol.Schema(
 )
 
 TRIP_SCHEMA = vol.Schema(_ENTRY_FIELD)
+
+SKIP_CHORE_SCHEMA = vol.Schema(
+    {
+        **_ENTRY_FIELD,
+        vol.Required(ATTR_LIST_ENTITY_ID): cv.entity_id,
+        vol.Required(ATTR_CHORE): vol.All(cv.string, vol.Length(min=1)),
+    }
+)
+
+SET_AWAY_SCHEMA = vol.Schema(
+    {
+        **_ENTRY_FIELD,
+        vol.Optional(ATTR_MEMBER): cv.string,
+        vol.Required(ATTR_AWAY): cv.boolean,
+        vol.Optional(ATTR_BACK_ON): cv.date,
+    }
+)
 
 SEARCH_RECIPES_SCHEMA = vol.Schema(
     {
@@ -406,6 +430,9 @@ async def _async_add_meal_ingredients_to_list(call: ServiceCall) -> None:
         if reg_entry is not None
         else _grocery_list_id(coordinator)
     )
+    if coordinator.data.lists[list_id].is_chores:
+        # Each ingredient would land as a chore for anyone.
+        raise _validation_error("list_is_chores")
     date_from: date = call.data[ATTR_DATE_FROM]
     date_to: date = call.data.get(ATTR_DATE_TO, date_from)
     if date_to < date_from:
@@ -440,6 +467,78 @@ async def _async_add_list_item(call: ServiceCall) -> None:
         )
     except FamFamApiError as err:
         _raise_write_error("item_create_failed", err)
+    finally:
+        await coordinator.async_refresh_after_write()
+
+
+def _require_capability(coordinator: FamFamCoordinator, capability: str) -> None:
+    """Reject an action the connected FamFam server can't perform yet."""
+    if not coordinator.bootstrap.has_capability(capability):
+        raise _validation_error("server_feature_unavailable")
+
+
+async def _async_skip_chore(call: ServiceCall) -> None:
+    """Skip a chore's current occurrence, by name or item uid."""
+    reg_entry = _famfam_registry_entry(
+        call.hass, call.data[ATTR_LIST_ENTITY_ID], "todo"
+    )
+    coordinator = _get_coordinator(call, reg_entry)
+    _require_capability(coordinator, CAPABILITY_CHORES)
+    list_id = _resolve_list_id(coordinator, reg_entry)
+    wanted: str = call.data[ATTR_CHORE].strip()
+    items = coordinator.data.lists[list_id].items
+    if (item := items.get(wanted)) is None:
+        # By name: only chores still to do, so a done one-off with the same
+        # name as a live chore doesn't make the name ambiguous.
+        matches = [
+            candidate
+            for candidate in items.values()
+            if candidate.is_chore
+            and not candidate.checked
+            and candidate.text.casefold() == wanted.casefold()
+        ]
+        if len(matches) > 1:
+            raise _validation_error("chore_ambiguous", {"chore": wanted})
+        if not matches:
+            raise _validation_error("chore_not_found", {"chore": wanted})
+        item = matches[0]
+    if not item.is_chore:
+        raise _validation_error("not_a_chore")
+    try:
+        await coordinator.client.async_skip_chore(list_id, item.id)
+    except FamFamApiError as err:
+        _raise_write_error("chore_skip_failed", err)
+    finally:
+        await coordinator.async_refresh_after_write()
+    if item.repeats:
+        coordinator.async_schedule_followup_refresh()
+
+
+async def _async_set_away(call: ServiceCall) -> None:
+    """Mark a member away or back, defaulting to the default member."""
+    coordinator = _get_coordinator(call)
+    _require_capability(coordinator, CAPABILITY_AWAY)
+    if member := call.data.get(ATTR_MEMBER):
+        member_id = _resolve_member(coordinator, member)
+    elif default := coordinator.config_entry.options.get(CONF_DEFAULT_MEMBER):
+        member_id = default
+    else:
+        raise _validation_error("member_required")
+    away: bool = call.data[ATTR_AWAY]
+    back_on: date | None = call.data.get(ATTR_BACK_ON) if away else None
+    if back_on is not None and back_on.isoformat() <= coordinator.family_today():
+        raise _validation_error("back_on_not_future")
+    try:
+        await coordinator.client.async_set_away(
+            member_id, away, back_on.isoformat() if back_on else None
+        )
+    except FamFamApiError as err:
+        if err.code == "organiser_only":
+            # The shared mapping words this code for dinner check-ins.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="away_organiser_only"
+            ) from err
+        _raise_write_error("away_set_failed", err)
     finally:
         await coordinator.async_refresh_after_write()
 
@@ -569,6 +668,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_END_SHOPPING_TRIP,
         _async_end_shopping_trip,
         schema=TRIP_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SKIP_CHORE, _async_skip_chore, schema=SKIP_CHORE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_AWAY, _async_set_away, schema=SET_AWAY_SCHEMA
     )
     hass.services.async_register(
         DOMAIN,

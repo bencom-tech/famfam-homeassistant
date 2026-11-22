@@ -205,6 +205,31 @@ class FamFamApiClient:
             "DELETE", f"/lists/{list_id}/items/{item_id}", read_body=False
         )
 
+    async def async_skip_chore(self, list_id: str, item_id: str) -> None:
+        """Skip a chore's current occurrence (POST .../items/{id}/skip).
+
+        The server logs it as skipped and rolls a repeating chore on to its
+        next date and person. A plain item gets a 400 "not_a_chore".
+        """
+        await self._request(
+            "POST", f"/lists/{list_id}/items/{item_id}/skip", read_body=False
+        )
+
+    async def async_set_away(
+        self, member_id: str, away: bool, back_on: str | None = None
+    ) -> None:
+        """Mark a member away or back (PUT /members/{memberId}/away).
+
+        back_on is the date they are back on; without it the away is
+        open-ended. Marking another member away is organiser-only.
+        """
+        body: dict[str, Any] = {"away": away}
+        if away and back_on is not None:
+            body["backOn"] = back_on
+        await self._request(
+            "PUT", f"/members/{member_id}/away", json=body, read_body=False
+        )
+
     async def async_create_event(self, body: dict[str, Any]) -> None:
         """Create a calendar event."""
         await self._request("POST", "/events", json=body, read_body=False)

@@ -20,7 +20,9 @@ rules:
     status: done
   config-flow-test-coverage:
     status: todo
-    comment: Tests deferred to a dedicated pass after session 9.
+    comment: >-
+      tests/test_config_flow.py covers the user step (success, rejected token,
+      already configured). Reauth, reconfigure and options are still to do.
   dependency-transparency:
     status: done
     comment: No requirements; the API client is vendored in the integration.
@@ -86,7 +88,10 @@ rules:
     status: done
   test-coverage:
     status: todo
-    comment: Tests deferred to a dedicated pass after session 9.
+    comment: >-
+      A pytest suite with a mocked API covers payload parsing, chores, away,
+      imported events and the newer actions. The older platforms and actions
+      are not covered yet, so this is well short of the 95% the rule asks.
   # Gold (not the current target; recorded where already satisfied)
   diagnostics:
     status: done

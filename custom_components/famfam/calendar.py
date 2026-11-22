@@ -250,6 +250,10 @@ class FamFamWritableCalendar(FamFamBaseCalendar):
         changes = self._diff_event(current, event)
         if not changes:
             return
+        if current.imported and "date" in changes:
+            # The phone re-syncs an import from its source calendar; the
+            # server refuses the move, so say why before sending it.
+            self._raise("event_imported_date_locked")
         try:
             await self.coordinator.client.async_update_event(uid, changes)
         except FamFamApiError as err:

@@ -7,22 +7,24 @@ not an error. Payload field names match the server's haData.ts shapes.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta, tzinfo
+from datetime import datetime, timedelta, tzinfo
 import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
     ConfigEntryNotReady,
 )
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .api import FamFamApiClient, FamFamApiError, FamFamAuthError, FamFamConnectionError
 from .const import (
+    CHORE_SETTLE_REFRESH_DELAY,
     CONF_LISTS,
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
@@ -55,6 +57,8 @@ class FamFamBootstrapList:
     name: str
     is_grocery: bool
     sharing: str
+    # "chores" on a chore list, otherwise None.
+    kind: str | None = None
 
 
 @dataclass(slots=True)
@@ -69,6 +73,10 @@ class FamFamBootstrap:
     members: list[FamFamMember]
     lists: list[FamFamBootstrapList]
     capabilities: list[str]
+
+    def has_capability(self, name: str) -> bool:
+        """Whether the server advertises a feature (see const.CAPABILITY_*)."""
+        return name in self.capabilities
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> FamFamBootstrap:
@@ -97,6 +105,7 @@ class FamFamBootstrap:
                     name=lst.get("name", ""),
                     is_grocery=lst.get("isGrocery", False),
                     sharing=lst.get("sharing", ""),
+                    kind=lst.get("kind"),
                 )
                 for lst in payload.get("lists", [])
             ],
@@ -116,6 +125,17 @@ class FamFamItem:
     checked_by: str | None
     created_at: str | None
     updated_at: str | None
+    # Chore fields. The server sends them only for a chore, so is_chore is
+    # False and the rest stay at their defaults on every plain item.
+    is_chore: bool = False
+    # "YYYY-MM-DD" in the family's timezone; None means any time (or paused).
+    due_date: str | None = None
+    # Who has this occurrence; None means anyone.
+    assignee_uid: str | None = None
+    # False for a one-off, which stays ticked once done.
+    repeats: bool = False
+    paused: bool = False
+    note: str | None = None
 
 
 @dataclass(slots=True)
@@ -128,6 +148,13 @@ class FamFamList:
     unchecked_count: int
     categories: list[str] | None
     items: dict[str, FamFamItem]
+    # "chores" on a chore list, otherwise None.
+    kind: str | None = None
+
+    @property
+    def is_chores(self) -> bool:
+        """Whether this is a chore list."""
+        return self.kind == "chores"
 
 
 @dataclass(slots=True)
@@ -153,6 +180,10 @@ class FamFamEvent:
     location: str | None
     notes: str | None
     repeat: str
+    # Imported from a member's own calendar. The phone keeps it in step with
+    # its source, so the server refuses to move its date.
+    imported: bool = False
+    calendar_name: str | None = None
 
 
 @dataclass(slots=True)
@@ -196,6 +227,19 @@ class FamFamTrip:
 
 
 @dataclass(slots=True)
+class FamFamAway:
+    """A member marked away, from the state payload.
+
+    back_on is the date they are back on, or None for an open-ended away.
+    A dated away ends with no server write, so a quiet family keeps serving
+    it from the cache: readers must still compare back_on with today.
+    """
+
+    member_id: str
+    back_on: str | None
+
+
+@dataclass(slots=True)
 class FamFamRecipe:
     """A recipe hit from GET /recipes/search (dinner-sensor enrichment)."""
 
@@ -218,6 +262,7 @@ class FamFamData:
     meals: list[FamFamMeal]
     checkins: dict[str, FamFamCheckinDay]
     trip: FamFamTrip | None
+    away: dict[str, FamFamAway]
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> FamFamData:
@@ -234,6 +279,14 @@ class FamFamData:
                     checked_by=item.get("checkedBy"),
                     created_at=item.get("createdAt"),
                     updated_at=item.get("updatedAt"),
+                    is_chore="dueDate" in item,
+                    due_date=item.get("dueDate"),
+                    assignee_uid=item.get("assigneeUid"),
+                    # A server that predates the field can't say, so assume a
+                    # chore repeats: the follow-up refresh is then harmless.
+                    repeats=item.get("repeats", "dueDate" in item),
+                    paused=item.get("paused", False),
+                    note=item.get("note"),
                 )
                 for item in lst.get("items", [])
             }
@@ -244,6 +297,7 @@ class FamFamData:
                 unchecked_count=lst.get("uncheckedCount", 0),
                 categories=lst.get("categories"),
                 items=items,
+                kind=lst.get("kind"),
             )
         events = [
             FamFamEvent(
@@ -259,6 +313,8 @@ class FamFamData:
                 location=event.get("location"),
                 notes=event.get("notes"),
                 repeat=event.get("repeat", "never"),
+                imported=event.get("imported", False),
+                calendar_name=event.get("calendarName"),
             )
             for event in payload.get("events", [])
         ]
@@ -290,6 +346,12 @@ class FamFamData:
                 window_minutes=raw_trip.get("windowMinutes", 0),
                 store_name=raw_trip.get("storeName"),
             )
+        away = {
+            entry["memberId"]: FamFamAway(
+                member_id=entry["memberId"], back_on=entry.get("backOn")
+            )
+            for entry in payload.get("away") or []
+        }
         return cls(
             state_version=payload.get("stateVersion", 0),
             generated_at=payload.get("generatedAt", ""),
@@ -299,6 +361,7 @@ class FamFamData:
             meals=meals,
             checkins=checkins,
             trip=trip,
+            away=away,
         )
 
 
@@ -347,6 +410,9 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         # here and refreshed only when tonight's recipe changes.
         self.tonight_recipe: FamFamRecipe | None = None
         self._enriched_recipe_id: str | None = None
+        self._cancel_followup_refresh: CALLBACK_TYPE | None = None
+        # generated_at of the payload a lapsed away last forced a refetch for.
+        self._lapse_refetched: str | None = None
 
     async def _async_setup(self) -> None:
         """Fetch the family shape once per (re)load."""
@@ -396,6 +462,18 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
             # indefinitely while the served event (-7/+28 days) and meal
             # (14 days) windows never slide. Force a full refetch instead.
             self.etag = None
+        if (
+            self.etag
+            and self.data is not None
+            and self._lapse_refetched != self.data.generated_at
+            and self._away_has_lapsed()
+        ):
+            # A dated away ended overnight with no server write, so the
+            # version never moved, but chore assignees depend on who is away.
+            # Once per payload: if the server still lists the entry (clocks
+            # disagreeing on the date), don't refetch on every poll.
+            self._lapse_refetched = self.data.generated_at
+            self.etag = None
         try:
             result = await self.client.async_get_state(self.etag)
         except FamFamAuthError as err:
@@ -434,6 +512,48 @@ class FamFamCoordinator(DataUpdateCoordinator[FamFamData]):
         """
         self.etag = None
         await self.async_refresh()
+
+    def async_schedule_followup_refresh(self) -> None:
+        """Refresh once more after the server has settled a ticked chore.
+
+        A repeating chore comes back unticked with a new due date and
+        assignee about 10 seconds after it is ticked. Repeated calls restart
+        the timer, so a burst of ticks costs one extra fetch.
+        """
+        if self._cancel_followup_refresh is not None:
+            self._cancel_followup_refresh()
+
+        async def _refresh(_now: datetime) -> None:
+            self._cancel_followup_refresh = None
+            await self.async_refresh_after_write()
+
+        self._cancel_followup_refresh = async_call_later(
+            self.hass, CHORE_SETTLE_REFRESH_DELAY, _refresh
+        )
+
+    async def async_shutdown(self) -> None:
+        """Cancel the pending follow-up refresh along with the polling."""
+        if self._cancel_followup_refresh is not None:
+            self._cancel_followup_refresh()
+            self._cancel_followup_refresh = None
+        await super().async_shutdown()
+
+    def _away_has_lapsed(self) -> bool:
+        """Whether a cached away entry's back-on date has arrived."""
+        today = self.family_today()
+        return any(
+            away.back_on is not None and away.back_on <= today
+            for away in self.data.away.values()
+        )
+
+    def away_member_ids(self) -> set[str]:
+        """The members who are away today."""
+        today = self.family_today()
+        return {
+            away.member_id
+            for away in self.data.away.values()
+            if away.back_on is None or today < away.back_on
+        }
 
     @property
     def family_tz(self) -> tzinfo:

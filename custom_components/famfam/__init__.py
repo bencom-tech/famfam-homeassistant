@@ -57,7 +57,7 @@ def _async_register_devices(
     device_registry = dr.async_get(hass)
 
     hub_identifier = (DOMAIN, bootstrap.family_id)
-    device_registry.async_get_or_create(
+    hub = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={hub_identifier},
         entry_type=DeviceEntryType.SERVICE,
@@ -70,15 +70,19 @@ def _async_register_devices(
     for member in bootstrap.members:
         identifier = (DOMAIN, f"{bootstrap.family_id}_{member.id}")
         expected.add(identifier)
-        device_registry.async_get_or_create(
+        device = device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={identifier},
             entry_type=DeviceEntryType.SERVICE,
             manufacturer="FamFam",
             model="Family member",
             name=member.name,
-            via_device=hub_identifier,
         )
+        # Linked by id in a second step: the `via_device` identifier argument
+        # is deprecated, and its `via_device_id` replacement isn't accepted by
+        # every Home Assistant version this integration supports.
+        if device.via_device_id != hub.id:
+            device_registry.async_update_device(device.id, via_device_id=hub.id)
 
     # Members who left the family since the last load.
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):

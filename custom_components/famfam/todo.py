@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.todo import (
@@ -21,6 +22,7 @@ from .const import DOMAIN
 from .coordinator import (
     FamFamConfigEntry,
     FamFamCoordinator,
+    FamFamItem,
     FamFamList,
     exposed_list_ids,
 )
@@ -28,6 +30,16 @@ from .entity import FamFamEntity
 from .util import api_error
 
 PARALLEL_UPDATES = 0
+
+
+def _due(item: FamFamItem) -> date | None:
+    """A chore's due date, or None for any time, paused or unparseable."""
+    if not item.due_date:
+        return None
+    try:
+        return date.fromisoformat(item.due_date)
+    except ValueError:
+        return None
 
 
 async def async_setup_entry(
@@ -66,13 +78,17 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
 
     # No SET_DESCRIPTION_ON_ITEM: FamFam items have no description field, and
     # omitting the feature makes the todo service layer reject the field.
+    # Likewise no SET_DUE_DATE_ON_ITEM: a chore's due date and note are shown
+    # but set in the FamFam app, where its schedule and rotation live.
     _attr_supported_features = (
         TodoListEntityFeature.CREATE_TODO_ITEM
         | TodoListEntityFeature.UPDATE_TODO_ITEM
         | TodoListEntityFeature.DELETE_TODO_ITEM
     )
     # The aisle map grows with the list; keep it out of the recorder.
-    _unrecorded_attributes = frozenset({"categories", "item_categories"})
+    _unrecorded_attributes = frozenset(
+        {"categories", "item_categories", "item_assignees", "paused_items"}
+    )
 
     def __init__(self, coordinator: FamFamCoordinator, list_id: str) -> None:
         """Initialise for one list."""
@@ -80,9 +96,12 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
         self._list_id = list_id
         famfam_list = coordinator.data.lists[list_id]
         self._attr_unique_id = f"{coordinator.bootstrap.family_id}_{list_id}"
-        self._attr_translation_key = (
-            "grocery_list" if famfam_list.is_grocery else "list"
-        )
+        if famfam_list.is_chores:
+            self._attr_translation_key = "chore_list"
+        elif famfam_list.is_grocery:
+            self._attr_translation_key = "grocery_list"
+        else:
+            self._attr_translation_key = "list"
         self._attr_translation_placeholders = {"list_name": famfam_list.name}
 
     @property
@@ -106,6 +125,8 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 status=TodoItemStatus.COMPLETED
                 if item.checked
                 else TodoItemStatus.NEEDS_ACTION,
+                due=_due(item),
+                description=item.note,
             )
             for item in famfam_list.items.values()
         ]
@@ -115,7 +136,7 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
         """Expose the aisle grouping for card authors (spec §5.1)."""
         if (famfam_list := self._list) is None:
             return None
-        return {
+        attributes: dict[str, Any] = {
             # The family's aisle names (grocery lists only, else None).
             "categories": famfam_list.categories,
             # uid → aisle, so cards can group todo_items without extra lookups.
@@ -125,6 +146,19 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
                 if item.category
             },
         }
+        if famfam_list.is_chores:
+            names = {m.id: m.name for m in self.coordinator.bootstrap.members}
+            # uid → who has the chore. A chore for anyone is left out.
+            attributes["item_assignees"] = {
+                item.id: names.get(item.assignee_uid, item.assignee_uid)
+                for item in famfam_list.items.values()
+                if item.assignee_uid
+            }
+            # Paused chores have no due date, the same as any-time ones.
+            attributes["paused_items"] = [
+                item.id for item in famfam_list.items.values() if item.paused
+            ]
+        return attributes
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Add an item to the list."""
@@ -164,6 +198,9 @@ class FamFamTodoListEntity(FamFamEntity, TodoListEntity):
             raise api_error("item_update_failed", err) from err
         finally:
             await self.coordinator.async_refresh_after_write()
+        if changes.get("checked") and current.is_chore and current.repeats:
+            # The server rolls a ticked repeating chore on a few seconds later.
+            self.coordinator.async_schedule_followup_refresh()
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete items from the list."""

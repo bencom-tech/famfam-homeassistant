@@ -7,13 +7,13 @@ helpers and per-person toggle scripts — each member gets their own
 member gets a **home-for-dinner** binary sensor driven by FamFam's dinner
 check-ins — an automation primitive no other family integration has.
 
-Alongside those: your FamFam lists as to-do entities, the meal plan as its
-own calendar, tonight's-dinner and headcount sensors, and a one-tap
-"heading to the shops" button. One integration, one token, no per-person
-app passwords — a single token covers your whole family.
+Alongside those: your FamFam lists and chores as to-do entities, the meal
+plan as its own calendar, tonight's-dinner and headcount sensors, and a
+one-tap "heading to the shops" button. One integration, one token, no
+per-person app passwords — a single token covers your whole family.
 
 > **Status:** early development, feature-complete for v1. To-do, calendar,
-> sensor, binary-sensor and button platforms, nine services, and six
+> sensor, binary-sensor and button platforms, eleven services, and seven
 > ready-made automation blueprints.
 
 ## Installation
@@ -82,6 +82,10 @@ Calendar notes:
   `famfam.set_meal` service instead of calendar event mutation.
 - Events are served for a bounded window: 7 days back to 28 days forward
   (meals: 14 days ahead). Calendar views beyond that show nothing.
+- Events imported into FamFam from a calendar on someone's phone show like
+  any other event. Their date can't be changed from Home Assistant, because
+  the phone keeps them in step with the calendar they came from: change the
+  date there. Title, times, notes and location can still be edited.
 - New family members get their calendar after a reload of the integration.
 
 ### Lists
@@ -93,6 +97,36 @@ Calendar notes:
 - A **"{list} remaining" sensor** per list — the number of unchecked items,
   with `categories` and `oldest_item_added` attributes. Handy for a "12
   items on the grocery list" badge or a stale-list nag.
+
+### Chores
+
+FamFam chore lists appear as `todo` entities too, with what makes them
+chores carried across:
+
+- Each chore shows its **due date**, and its note as the description.
+  Tick a chore to mark it done. A repeating chore comes back unticked a
+  few seconds later with its next due date and, on a rotation, the next
+  person.
+- An `item_assignees` attribute maps each chore to who has it (chores for
+  anyone are left out), and `paused_items` lists the paused ones.
+- A **"{list} due" sensor** per chore list: how many chores are due today
+  or overdue, with an `overdue` count and a `chores` attribute listing each
+  one's `name`, `due`, `assignee` and `list`.
+- A **Chores due** sensor on each member's device: the same, for that
+  member's own chores across your chore lists.
+- An **Away** binary sensor on each member's device, on while they are
+  marked away in FamFam, with a `back_on` attribute. Away members are
+  passed over for chores. Set it with `famfam.set_away`, for example from
+  a presence automation.
+
+Chore notes:
+
+- Due dates, repeats, rotations and notes are set in the FamFam app. An
+  item added to a chore list from Home Assistant is a one-off chore for
+  anyone, with no due date.
+- Any-time and paused chores have no due date and never count as due.
+- Skipping a chore (`famfam.skip_chore`) records it as skipped, not done,
+  and moves a repeating chore on.
 
 ### Dinner
 
@@ -125,7 +159,8 @@ Calendar notes:
 - A **Next event** sensor for the family and one on each member's device —
   the title of the soonest upcoming event, with a `start` attribute (the
   family one also carries `member` and `member_colour` for single-person
-  events).
+  events). `imported` and `imported_from` say whether the event came from
+  a calendar on someone's phone, and which one.
 
 Notes:
 
@@ -142,7 +177,7 @@ Notes:
 
 ## Services
 
-Nine services (actions) for automations, scripts and voice — each one
+Eleven services (actions) for automations, scripts and voice — each one
 replaces a pile of helpers and template YAML. All fields have selectors,
 so the automation editor's UI mode works throughout. Every service takes
 an optional `config_entry_id`; you only need it if more than one FamFam
@@ -157,6 +192,8 @@ family is set up.
 | `famfam.add_list_item` | Add an item with an aisle category — which `todo.add_item` can't carry |
 | `famfam.start_shopping_trip` | Announce a shopping trip (FamFam Plus) |
 | `famfam.end_shopping_trip` | End the current trip; a no-op if none is running |
+| `famfam.skip_chore` | Skip a chore this time, by name or item uid |
+| `famfam.set_away` | Mark a member away or back, with an optional back-on date |
 | `famfam.search_recipes` | Response service: search recipes by text, cuisine, diet, allergen or course |
 | `famfam.get_meal_plan` | Response service: the planned meals from today, up to 14 days |
 
@@ -182,6 +219,17 @@ data:
   status: eating
 ```
 
+Mark a member away until a date (leave `back_on` off for open-ended, and
+`member` off to use the default member):
+
+```yaml
+action: famfam.set_away
+data:
+  member: Alex
+  away: true
+  back_on: "2026-12-05"
+```
+
 The two response services return data into a `response_variable`:
 
 ```yaml
@@ -204,13 +252,13 @@ Service notes:
 - `add_list_item` exists alongside the standard `todo.add_item` because
   the native action can't carry a category. Voice via Assist uses
   `todo.add_item`; automations that know the aisle should use this one.
-- Answering the check-in for **another** member needs a token created by
-  an organiser; permission errors from FamFam surface as clear error
+- Answering the check-in for **another** member, or marking another
+  member away, needs a token created by an organiser; permission errors from FamFam surface as clear error
   messages, never a silent no-op.
 
 ## Blueprints
 
-Six ready-made automations. HACS doesn't install an integration's
+Seven ready-made automations. HACS doesn't install an integration's
 blueprints, so import them by URL — each badge below opens the importer
 with the URL pre-filled. Every FamFam entity is a configurable input
 (picked via the entity selector), never a hardcoded id.
@@ -223,6 +271,7 @@ with the URL pre-filled. Every FamFam entity is a configurable input
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fshopping_trip_announcement.yaml) **Shopping trip announcement** | A trip starts → announce it, with an "Add an item" notification reply that goes straight onto the list |
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Flist_getting_long.yaml) **List getting long** | A list grows past a threshold → notify |
 | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fevent_tomorrow.yaml) **Events tomorrow** | At a chosen time, read tomorrow's events from a FamFam calendar → notify and/or colour a light |
+| [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbencom-tech%2Ffamfam-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamfam%2Fchores_due_reminder.yaml) **Chores due reminder** | At a chosen time, or when someone gets home, remind a member of their due and overdue chores |
 
 ## Removing the integration
 

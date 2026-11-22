@@ -1,11 +1,13 @@
 """Sensor platform for the FamFam integration.
 
 Dinner sensors (tonight's meal and the check-in headcount), a remaining-item
-count per list, and next-event sensors for the family and each member.
+count per list, next-event sensors for the family and each member, and
+chores-due counts per chore list and per member.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
@@ -24,6 +26,7 @@ from .coordinator import (
     FamFamConfigEntry,
     FamFamCoordinator,
     FamFamEvent,
+    FamFamItem,
     FamFamList,
     FamFamMember,
     exposed_list_ids,
@@ -56,13 +59,30 @@ async def async_setup_entry(
         for member in coordinator.bootstrap.members
     )
 
+    def _chore_list_ids() -> set[str]:
+        return {
+            list_id
+            for list_id in exposed_list_ids(coordinator, entry)
+            if coordinator.data.lists[list_id].is_chores
+        }
+
     # Remove stale sensors: members who left, or lists deleted/deselected
     # while HA was down. Live list changes are handled by the listener below,
     # so exposed list ids must count as valid here.
-    valid_unique_ids = {entity.unique_id for entity in entities} | {
-        f"{family_id}_list_remaining_{list_id}"
-        for list_id in exposed_list_ids(coordinator, entry)
-    }
+    chore_list_ids = _chore_list_ids()
+    valid_unique_ids = (
+        {entity.unique_id for entity in entities}
+        | {
+            f"{family_id}_list_remaining_{list_id}"
+            for list_id in exposed_list_ids(coordinator, entry)
+        }
+        | {f"{family_id}_chores_due_list_{list_id}" for list_id in chore_list_ids}
+    )
+    if chore_list_ids:
+        valid_unique_ids |= {
+            f"{family_id}_chores_due_member_{member.id}"
+            for member in coordinator.bootstrap.members
+        }
     entity_registry = er.async_get(hass)
     for reg_entry in er.async_entries_for_config_entry(
         entity_registry, entry.entry_id
@@ -99,6 +119,48 @@ async def async_setup_entry(
     _sync_list_sensors()
     entry.async_on_unload(coordinator.async_add_listener(_sync_list_sensors))
 
+    # Chores-due sensors: one per exposed chore list, plus one per member for
+    # as long as the family has a chore list exposed at all.
+    known_chore_lists: set[str] = set()
+    member_chores_added = False
+
+    @callback
+    def _sync_chore_sensors() -> None:
+        nonlocal member_chores_added
+        registry = er.async_get(hass)
+        chore_lists = _chore_list_ids()
+        if new_ids := chore_lists - known_chore_lists:
+            async_add_entities(
+                FamFamListChoresDueSensor(coordinator, list_id)
+                for list_id in new_ids
+            )
+            known_chore_lists.update(new_ids)
+        if removed := known_chore_lists - chore_lists:
+            for list_id in removed:
+                if entity_id := registry.async_get_entity_id(
+                    SENSOR_DOMAIN, DOMAIN, f"{family_id}_chores_due_list_{list_id}"
+                ):
+                    registry.async_remove(entity_id)
+            known_chore_lists.difference_update(removed)
+        if chore_lists and not member_chores_added:
+            async_add_entities(
+                FamFamMemberChoresDueSensor(coordinator, entry, member)
+                for member in coordinator.bootstrap.members
+            )
+            member_chores_added = True
+        elif not chore_lists and member_chores_added:
+            for member in coordinator.bootstrap.members:
+                if entity_id := registry.async_get_entity_id(
+                    SENSOR_DOMAIN,
+                    DOMAIN,
+                    f"{family_id}_chores_due_member_{member.id}",
+                ):
+                    registry.async_remove(entity_id)
+            member_chores_added = False
+
+    _sync_chore_sensors()
+    entry.async_on_unload(coordinator.async_add_listener(_sync_chore_sensors))
+
 
 def _event_start(
     coordinator: FamFamCoordinator, famfam_event: FamFamEvent
@@ -134,6 +196,14 @@ def _next_event(
     if not upcoming:
         return None
     return min(upcoming, key=lambda e: _event_start(coordinator, e))
+
+
+def _import_attributes(famfam_event: FamFamEvent | None) -> dict[str, Any]:
+    """Whether the event came from a member's own calendar, and which one."""
+    return {
+        "imported": bool(famfam_event and famfam_event.imported),
+        "imported_from": famfam_event.calendar_name if famfam_event else None,
+    }
 
 
 def _wire_start(famfam_event: FamFamEvent) -> str:
@@ -319,6 +389,7 @@ class FamFamNextEventSensor(FamFamEntity, SensorEntity):
             "start": _wire_start(famfam_event) if famfam_event else None,
             "member": member.name if member else None,
             "member_colour": member.colour if member else None,
+            **_import_attributes(famfam_event),
         }
 
 
@@ -347,4 +418,130 @@ class FamFamMemberNextEventSensor(FamFamEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """When the next event starts."""
         famfam_event = _next_event(self.coordinator, self._member.id)
-        return {"start": _wire_start(famfam_event) if famfam_event else None}
+        return {
+            "start": _wire_start(famfam_event) if famfam_event else None,
+            **_import_attributes(famfam_event),
+        }
+
+
+def _due_chores(
+    coordinator: FamFamCoordinator, famfam_lists: Iterable[FamFamList]
+) -> list[tuple[FamFamList, FamFamItem]]:
+    """Chores due today or overdue, oldest due date first.
+
+    Any-time and paused chores have no due date and never count; a chore
+    already ticked is done (a repeating one comes back with its next date).
+    """
+    today = coordinator.family_today()
+    due = [
+        (famfam_list, item)
+        for famfam_list in famfam_lists
+        for item in famfam_list.items.values()
+        if item.is_chore
+        and not item.checked
+        and not item.paused
+        and item.due_date is not None
+        and item.due_date <= today
+    ]
+    due.sort(key=lambda pair: (pair[1].due_date or "", pair[1].text))
+    return due
+
+
+class _FamFamChoresDueSensor(FamFamEntity, SensorEntity):
+    """Shared state and attributes for the chores-due sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    # The chore list changes daily; keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"chores"})
+
+    def _due(self) -> list[tuple[FamFamList, FamFamItem]]:
+        raise NotImplementedError
+
+    @property
+    def native_value(self) -> int:
+        """How many chores are due today or overdue."""
+        return len(self._due())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The due chores themselves, for cards and announcements."""
+        due = self._due()
+        today = self.coordinator.family_today()
+        names = {m.id: m.name for m in self.coordinator.bootstrap.members}
+        return {
+            "overdue": sum(1 for _, item in due if (item.due_date or "") < today),
+            "chores": [
+                {
+                    "name": item.text,
+                    "due": item.due_date,
+                    "assignee": names.get(item.assignee_uid)
+                    if item.assignee_uid
+                    else None,
+                    "list": famfam_list.name,
+                }
+                for famfam_list, item in due
+            ],
+        }
+
+
+class FamFamListChoresDueSensor(_FamFamChoresDueSensor):
+    """Chores due today or overdue on one chore list, whoever they are for."""
+
+    _attr_translation_key = "chores_due"
+
+    def __init__(self, coordinator: FamFamCoordinator, list_id: str) -> None:
+        """Initialise for one chore list on the family hub device."""
+        super().__init__(coordinator)
+        self._list_id = list_id
+        self._attr_unique_id = (
+            f"{coordinator.bootstrap.family_id}_chores_due_list_{list_id}"
+        )
+        self._attr_translation_placeholders = {
+            "list_name": coordinator.data.lists[list_id].name
+        }
+
+    @property
+    def available(self) -> bool:
+        """Unavailable when the list disappears server-side."""
+        return super().available and self._list_id in self.coordinator.data.lists
+
+    def _due(self) -> list[tuple[FamFamList, FamFamItem]]:
+        famfam_list = self.coordinator.data.lists.get(self._list_id)
+        return _due_chores(self.coordinator, [famfam_list] if famfam_list else [])
+
+
+class FamFamMemberChoresDueSensor(_FamFamChoresDueSensor):
+    """One member's chores due today or overdue, across the exposed chore lists.
+
+    Only chores that are theirs: a chore for anyone counts on its list's
+    sensor but on nobody's own.
+    """
+
+    _attr_translation_key = "member_chores_due"
+
+    def __init__(
+        self,
+        coordinator: FamFamCoordinator,
+        entry: FamFamConfigEntry,
+        member: FamFamMember,
+    ) -> None:
+        """Initialise on the member's device."""
+        super().__init__(coordinator, member_id=member.id)
+        self._entry = entry
+        self._member = member
+        self._attr_unique_id = (
+            f"{coordinator.bootstrap.family_id}_chores_due_member_{member.id}"
+        )
+
+    def _due(self) -> list[tuple[FamFamList, FamFamItem]]:
+        lists = self.coordinator.data.lists
+        exposed = [
+            lists[list_id]
+            for list_id in exposed_list_ids(self.coordinator, self._entry)
+            if lists[list_id].is_chores
+        ]
+        return [
+            (famfam_list, item)
+            for famfam_list, item in _due_chores(self.coordinator, exposed)
+            if item.assignee_uid == self._member.id
+        ]
