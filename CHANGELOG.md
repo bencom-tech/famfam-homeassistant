@@ -7,7 +7,7 @@ project uses [Semantic Versioning](https://semver.org/).
 Each release's section is published as its GitHub release notes, which HACS
 shows in Home Assistant's update dialog.
 
-## [Unreleased]
+## [0.6.0] - 2026-11-22
 
 ### Added
 
@@ -37,10 +37,6 @@ shows in Home Assistant's update dialog.
 
 - Member devices are linked to the family device without the `via_device`
   argument that Home Assistant has deprecated.
-
-The away sensors and the two new actions need FamFam's servers to be on the
-release that adds them; until then they don't appear, and the rest works as
-before.
 
 ## [0.5.0] - 2026-11-08
 
@@ -121,7 +117,7 @@ before.
 
 - First release: config flow, data coordinator and todo lists.
 
-[Unreleased]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.5.0...HEAD
+[0.6.0]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.3.0...v0.4.0
