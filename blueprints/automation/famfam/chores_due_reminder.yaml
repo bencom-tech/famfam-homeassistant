@@ -1,0 +1,125 @@
+blueprint:
+  name: "FamFam: chores due reminder"
+  description: >-
+    At a chosen time, and optionally when someone arrives home, remind a
+    family member of their chores that are due today or overdue. Nothing
+    is sent when they have none, or while they are marked away in FamFam.
+  domain: automation
+  homeassistant:
+    min_version: "2025.8.0"
+  source_url: https://github.com/bencom-tech/famfam-homeassistant/blob/main/blueprints/automation/famfam/chores_due_reminder.yaml
+  input:
+    chores_sensor:
+      name: Chores due sensor
+      description: >-
+        A FamFam "Chores due" sensor: a member's own, or a chore list's
+        "… due" sensor to cover everyone's chores on that list.
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: sensor
+    reminder_time:
+      name: Reminder time
+      description: When to send the reminder each day.
+      default: "16:00:00"
+      selector:
+        time:
+    persons:
+      name: Also remind on arriving home
+      description: >-
+        People whose arrival home should send the reminder too. Leave
+        empty to remind at the set time only.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: person
+          multiple: true
+    away_sensor:
+      name: Away sensor
+      description: >-
+        The member's FamFam "Away" binary sensor. While it is on, no
+        reminder is sent. Leave empty to always remind.
+      default: []
+      selector:
+        entity:
+          filter:
+            integration: famfam
+            domain: binary_sensor
+    tts_entity:
+      name: Text-to-speech engine
+      description: Only needed when speakers are chosen.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: tts
+    media_players:
+      name: Speakers
+      description: Where to announce the reminder. Leave empty for no announcement.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: media_player
+          multiple: true
+    notify_service:
+      name: Notify action
+      description: >-
+        A notify action such as notify.mobile_app_alexs_phone. Leave empty
+        for no notification.
+      default: ""
+      selector:
+        text:
+
+triggers:
+  - trigger: time
+    at: !input reminder_time
+  - trigger: state
+    entity_id: !input persons
+    to: "home"
+
+variables:
+  chores_sensor: !input chores_sensor
+  away_sensor: !input away_sensor
+  tts_entity: !input tts_entity
+  media_players: !input media_players
+  notify_service: !input notify_service
+  chores: "{{ state_attr(chores_sensor, 'chores') or [] }}"
+  names: "{{ chores | map(attribute='name') | list }}"
+  overdue: "{{ state_attr(chores_sensor, 'overdue') | int(0) }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ names | count > 0 }}"
+  - condition: template
+    value_template: >-
+      {{ away_sensor | length == 0 or not is_state(away_sensor, 'on') }}
+
+actions:
+  - if:
+      - condition: template
+        value_template: >-
+          {{ media_players | count > 0 and tts_entity | length > 0 }}
+    then:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_entity
+        data:
+          media_player_entity_id: !input media_players
+          message: >-
+            {{ 'One chore is' if names | count == 1 else names | count ~ ' chores are' }}
+            due: {{ names | join(', ') }}.
+  - if:
+      - condition: template
+        value_template: "{{ notify_service != '' }}"
+    then:
+      - action: "{{ notify_service }}"
+        data:
+          title: "Chores due"
+          message: >-
+            {{ names | join(', ') }}{% if overdue > 0 %}
+            ({{ overdue }} overdue){% endif %}
+
+mode: single

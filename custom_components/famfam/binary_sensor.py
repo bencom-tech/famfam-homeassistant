@@ -18,6 +18,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .const import CAPABILITY_AWAY
 from .coordinator import (
     FamFamCheckinDay,
     FamFamConfigEntry,
@@ -49,6 +50,11 @@ async def async_setup_entry(
         FamFamHomeForDinnerBinarySensor(coordinator, member)
         for member in coordinator.bootstrap.members
     )
+    if coordinator.bootstrap.has_capability(CAPABILITY_AWAY):
+        entities.extend(
+            FamFamAwayBinarySensor(coordinator, member)
+            for member in coordinator.bootstrap.members
+        )
 
     # Remove sensors for members who left; their devices are purged in
     # __init__.py. New members appear after a reload, like the calendars.
@@ -156,6 +162,33 @@ class FamFamHomeForDinnerBinarySensor(FamFamEntity, BinarySensorEntity):
             return {"source": None}
         # An absent uid means a manual answer (the server's fail-open rule).
         return {"source": day.sources.get(self._member.id, "manual")}
+
+
+class FamFamAwayBinarySensor(FamFamEntity, BinarySensorEntity):
+    """On while this member is marked away in FamFam.
+
+    Away members are passed over for chores and their reminders. Set it from
+    the app or with the famfam.set_away action.
+    """
+
+    _attr_translation_key = "away"
+
+    def __init__(self, coordinator: FamFamCoordinator, member: FamFamMember) -> None:
+        """Initialise on the member's device."""
+        super().__init__(coordinator, member_id=member.id)
+        self._member = member
+        self._attr_unique_id = f"{coordinator.bootstrap.family_id}_away_{member.id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Whether the member is away today."""
+        return self._member.id in self.coordinator.away_member_ids()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The date they are back on; None when open-ended or not away."""
+        away = self.coordinator.data.away.get(self._member.id)
+        return {"back_on": away.back_on if away and self.is_on else None}
 
 
 class FamFamDinnerCheckinsCompleteBinarySensor(FamFamEntity, BinarySensorEntity):

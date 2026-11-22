@@ -7,6 +7,41 @@ project uses [Semantic Versioning](https://semver.org/).
 Each release's section is published as its GitHub release notes, which HACS
 shows in Home Assistant's update dialog.
 
+## [Unreleased]
+
+### Added
+
+- **Chores.** FamFam chore lists are now recognised: each chore shows its due
+  date and note, and the to-do entity gains `item_assignees` and
+  `paused_items` attributes. Ticking a repeating chore refreshes again a few
+  seconds later, once FamFam has moved it to its next date and person.
+- A "{list} due" sensor per chore list and a "Chores due" sensor per member,
+  counting chores due today or overdue, with the chores listed in attributes.
+- An "Away" binary sensor per member, and a `famfam.set_away` action to mark
+  someone away or back.
+- A `famfam.skip_chore` action.
+- A "Chores due reminder" blueprint.
+- Next-event sensors say whether the event was imported from a calendar on
+  someone's phone (`imported`, `imported_from`).
+- A test suite, run in CI.
+
+### Changed
+
+- Changing the date of an imported calendar event is refused with a clear
+  message. The phone keeps imported events in step with their source
+  calendar, so the date has to be changed there.
+- `famfam.add_meal_ingredients_to_list` refuses a chore list.
+- The cached state is refetched on the morning a dated away ends.
+
+### Fixed
+
+- Member devices are linked to the family device without the `via_device`
+  argument that Home Assistant has deprecated.
+
+The away sensors and the two new actions need FamFam's servers to be on the
+release that adds them; until then they don't appear, and the rest works as
+before.
+
 ## [0.5.0] - 2026-11-08
 
 ### Breaking
@@ -86,6 +121,7 @@ shows in Home Assistant's update dialog.
 
 - First release: config flow, data coordinator and todo lists.
 
+[Unreleased]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bencom-tech/famfam-homeassistant/compare/v0.3.0...v0.4.0

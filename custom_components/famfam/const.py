@@ -25,6 +25,15 @@ EVENT_DEFAULT_DURATION: Final = timedelta(minutes=60)
 # the cached payload is this old to force one full refetch.
 STATE_MAX_AGE: Final = timedelta(hours=24)
 
+# The server settles a ticked chore about 10 seconds later: a repeating one
+# comes back unticked with its next due date and assignee. One extra refresh
+# after that picks it up without waiting for the next poll.
+CHORE_SETTLE_REFRESH_DELAY: Final = 15
+
+# Entries in the bootstrap `capabilities` list that gate newer server routes.
+CAPABILITY_CHORES: Final = "chores"
+CAPABILITY_AWAY: Final = "away"
+
 SERVICE_ADD_EVENT: Final = "add_event"
 SERVICE_SET_DINNER_CHECKIN: Final = "set_dinner_checkin"
 SERVICE_SET_MEAL: Final = "set_meal"
@@ -34,6 +43,8 @@ SERVICE_START_SHOPPING_TRIP: Final = "start_shopping_trip"
 SERVICE_END_SHOPPING_TRIP: Final = "end_shopping_trip"
 SERVICE_SEARCH_RECIPES: Final = "search_recipes"
 SERVICE_GET_MEAL_PLAN: Final = "get_meal_plan"
+SERVICE_SKIP_CHORE: Final = "skip_chore"
+SERVICE_SET_AWAY: Final = "set_away"
 
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_SUMMARY: Final = "summary"
@@ -60,6 +71,9 @@ ATTR_FREE_FROM: Final = "free_from"
 ATTR_COURSE: Final = "course"
 ATTR_LIMIT: Final = "limit"
 ATTR_DAYS: Final = "days"
+ATTR_CHORE: Final = "chore"
+ATTR_AWAY: Final = "away"
+ATTR_BACK_ON: Final = "back_on"
 
 # Server-side cap on the ingredients-to-list date range (haMutationsData.ts).
 INGREDIENTS_RANGE_MAX_DAYS: Final = 31
@@ -76,4 +90,6 @@ API_ERROR_KEYS: Final[dict[str, str]] = {
     "no_list_access": "no_list_access",
     "unknown_member": "member_not_found_server",
     "rate_limited": "rate_limited",
+    "imported_event": "event_imported_date_locked",
+    "not_a_chore": "not_a_chore",
 }

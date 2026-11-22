@@ -12,6 +12,12 @@
       },
       "dinner_checkins_complete": {
         "default": "mdi:checkbox-marked-circle-outline"
+      },
+      "away": {
+        "default": "mdi:bag-suitcase",
+        "state": {
+          "off": "mdi:home-account"
+        }
       }
     },
     "button": {
@@ -42,6 +48,12 @@
       },
       "next_event": {
         "default": "mdi:calendar-clock"
+      },
+      "chores_due": {
+        "default": "mdi:broom"
+      },
+      "member_chores_due": {
+        "default": "mdi:broom"
       }
     },
     "todo": {
@@ -50,6 +62,9 @@
       },
       "grocery_list": {
         "default": "mdi:cart"
+      },
+      "chore_list": {
+        "default": "mdi:broom"
       }
     }
   },
@@ -80,6 +95,12 @@
     },
     "get_meal_plan": {
       "service": "mdi:calendar-text"
+    },
+    "skip_chore": {
+      "service": "mdi:debug-step-over"
+    },
+    "set_away": {
+      "service": "mdi:bag-suitcase"
     }
   }
 }

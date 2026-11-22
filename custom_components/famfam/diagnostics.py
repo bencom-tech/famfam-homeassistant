@@ -19,7 +19,9 @@ TO_REDACT = {
     "initials",
     "location",
     "meal",
+    "calendar_name",
     "name",
+    "note",
     "notes",
     "store_name",
     "text",
@@ -47,5 +49,6 @@ async def async_get_config_entry_diagnostics(
         "meals": [asdict(meal) for meal in coordinator.data.meals],
         "checkins": [asdict(day) for day in coordinator.data.checkins.values()],
         "trip": asdict(trip) if (trip := coordinator.data.trip) else None,
+        "away": [asdict(away) for away in coordinator.data.away.values()],
     }
     return async_redact_data(data, TO_REDACT)
